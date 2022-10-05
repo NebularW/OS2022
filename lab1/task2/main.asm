@@ -1,3 +1,10 @@
+%define MULTI 	42
+%define P 		43
+%define N 		45
+%define ZERO 	48
+
+
+
 section .bss
 input:      RESB    255
 x:          RESB    255
@@ -37,13 +44,13 @@ _start:
     
     ;清空x,y,operator,input
     mov eax, x
-    call del_str
+    call memset
     mov eax, y
-    call del_str
-    ;mov eax, operator
-;    call del_str
+    call memset
+    mov eax, operator
+    call memset
     mov eax, input
-    call del_str
+    call memset
     
     jmp .loop
 
@@ -74,6 +81,7 @@ check_quit:
     ret 
 
 
+;void parse_input(char*)
 ;解析输入语句
 ;输入
 ;eax: x地址
@@ -83,44 +91,117 @@ check_quit:
 parse_input:
     push ebx
     push edx
-.parse_x:
-    cmp BYTE[ecx], 45
-    jl .parse_operator
-    mov dl, BYTE[ecx]
-    mov BYTE[eax], dl
-    inc eax
-    inc ecx
+    
+    cmp BYTE[ecx], N
+    jg .add_signal_x
     jmp .parse_x
 
-.parse_operator:
-    pop eax ;弹出的是operator的弟子
-    cmp BYTE[ecx], 42
-    jl .invalid
-    cmp BYTE[ecx], 43
-    jg  .invalid
-    mov dl, BYTE[ecx]
-    mov BYTE[eax], dl
-    inc eax
-    inc ecx
-    pop eax ;弹出的是y的地址
-    jmp .parse_y
+    .add_signal_x:
+    	mov dl, P
+    	mov BYTE[eax], dl
+    	inc eax
+    	jmp .parse_x
 
-.parse_y:
-    cmp BYTE[ecx], 10
-    jz .ret_parse
-    mov dl, BYTE[ecx]
-    mov BYTE[eax], dl
-    inc eax
-    inc ecx
-    jmp .parse_y
+	.parse_x:
+    	cmp BYTE[ecx], N
+    	jl .parse_operator
+    	mov dl, BYTE[ecx]
+    	mov BYTE[eax], dl
+    	inc eax
+    	inc ecx
+    	jmp .parse_x
 
-.invalid:
-    mov eax, msg
-    call print_str
+	.parse_operator:
+    	pop eax ;弹出的是operator的弟子
+    	cmp BYTE[ecx], MULTI
+    	jl .invalid
+    	cmp BYTE[ecx], P
+    	jg  .invalid
+    	mov dl, BYTE[ecx]
+    	mov BYTE[eax], dl
+    	inc eax
+    	inc ecx
 
-.ret_parse:
-    inc ecx
-    ret
+    	pop eax ;弹出的是y的地址
+    	cmp BYTE[ecx], N
+    	jg .add_signal_y
+    	jmp .parse_y
+
+ 	.add_signal_y:
+    	mov dl, P	;'+'
+    	mov BYTE[eax], dl
+    	inc eax
+    	jmp .parse_y
+    	
+
+	.parse_y:
+    	cmp BYTE[ecx], 10
+    	jz .ret_parse
+    	mov dl, BYTE[ecx]
+    	mov BYTE[eax], dl
+    	inc eax
+    	inc ecx
+    	jmp .parse_y
+
+	.invalid:
+    	mov eax, msg
+    	call print_str
+
+	.ret_parse:
+    	inc ecx
+    	ret
+
+
+
+
+;void cal()
+;运算得出结果
+cal:
+	cmp BYTE[operator], MULTI
+	mov esi x
+	mov edi y
+	jz domul
+
+	mov al, BYTE[x]
+	add al, BYTE[y]
+	cmp al, 88 ; 43+45=88,说明是异号
+	jnz doadd ;同号加法
+	cmp BYTE[x], N
+	jz 	.switch ; x是正数
+	mov esi, x
+	mov edi, y
+	jmp dosub
+	.switch:  ; 交换传入顺序
+		mov esi, y
+		mov edi, x
+		jmp dosub
+
+
+;void doadd()
+;同号整数相加
+doadd:
+	mov esi, x
+	mov edi, y
+	mov edx, result
+
+	mov eax, 0
+	mov ebx, 0
+	mov ch, 0
+
+
+
+
+
+
+
+
+dosub:
+	
+
+
+
+domul:
+	
 
 
 
@@ -137,22 +218,22 @@ parse_input:
 slen:
     push ebx
     mov ebx, eax
-nextchar:
-    cmp BYTE[eax], 0
-    jz finished
-    inc eax
-    jmp nextchar
-finished:
-    sub eax, ebx
-    pop ebx
-    ret
+	.nextchar:
+    	cmp BYTE[eax], 0
+    	jz .finished
+    	inc eax
+    	jmp .nextchar
+	.finished:
+    	sub eax, ebx
+    	pop ebx
+    	ret
 
 ;----------------------------------
-;void del_str(char*)
+;void memset(char*)
 ;清空地址
 ;输入
 ;eax 变量地址
-del_str:
+memset:
     push ebx
     push eax
     
@@ -160,16 +241,16 @@ del_str:
     call slen
     jmp .del_loop
     
-.del_loop:
-    and BYTE[ebx],0
-    inc ebx
-    dec eax
-    cmp eax, 0
-    jnz .del_loop
+	.del_loop:
+    	and BYTE[ebx],0
+    	inc ebx
+    	dec eax
+    	cmp eax, 0
+    	jnz .del_loop
     
-    pop ebx
-    pop eax
-    ret
+    	pop ebx
+    	pop eax
+    	ret
     
     
 
