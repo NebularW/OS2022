@@ -14,15 +14,20 @@ result:     RESB    255
 
 
 section .data
-msg     db  "Invalid",0h
+msg_hello       db  "Please input an expression: ",0h
+msg_invalid     db  "Invalid",0h
+
 
 section .text
 global _start
 ;------------------main函数----------------
 _start:
-    mov ebp, esp; for correct debugging
     
 .loop:
+    ;输出提示语
+    mov eax, msg_hello
+    call print_str
+    call printLF
     ;获取一行输入
     mov eax, input
     mov ebx, 255
@@ -144,8 +149,9 @@ parse_input:
     	jmp .parse_y
 
 	.invalid:
-    	mov eax, msg
+    	mov eax, msg_invalid
     	call print_str
+        call printLF
 
 	.ret_parse:
     	inc ecx
