@@ -1,21 +1,23 @@
-%define MULTI 	42
-%define P 		43
-%define N 		45
-%define ZERO 	48
+%define MULTI   42
+%define P       43
+%define N       45
+%define ZERO    48
 
 
 
 section .bss
-input:      RESB    255
+;input:      RESB    255
 x:          RESB    255
 y:          RESB    255
+input:      RESB    255
 operator:   RESB    255
 result:     RESB    255  
-
+signal:     RESB    255
 
 section .data
 msg_hello       db  "Please input an expression: ",0h
 msg_invalid     db  "Invalid",0h
+msg_result      db  "The result is: ",0h
 
 
 section .text
@@ -23,7 +25,7 @@ global _start
 ;------------------main函数----------------
 _start:
     
-.loop:
+.main_loop:
     ;输出提示语
     mov eax, msg_hello
     call print_str
@@ -37,16 +39,12 @@ _start:
     call check_quit
     cmp eax, 1
     jz .quit_loop
-    ;存参并计算
+    ;解析参数，计算并输出结果
     mov eax, x
     mov ebx, y
     mov edx, operator
     call parse_input
     call cal
-    ;输出结果
-    ;mov eax, result
-    ;call print_str
-    
     ;清空x,y,operator,input
     mov eax, x
     call memset
@@ -56,8 +54,8 @@ _start:
     call memset
     mov eax, input
     call memset
-    
-    jmp .loop
+    ;继续接收输入
+    jmp .main_loop
 
 .quit_loop:
     call quit 
@@ -102,60 +100,60 @@ parse_input:
     jmp .parse_x
 
     .add_signal_x:
-    	mov dl, P
-    	mov BYTE[eax], dl
-    	inc eax
-    	jmp .parse_x
+        mov dl, P
+        mov BYTE[eax], dl
+        inc eax
+        jmp .parse_x
 
-	.parse_x:
-    	cmp BYTE[ecx], N
-    	jl .parse_operator
-    	mov dl, BYTE[ecx]
-    	mov BYTE[eax], dl
-    	inc eax
-    	inc ecx
-    	jmp .parse_x
+    .parse_x:
+        cmp BYTE[ecx], N
+        jl .parse_operator
+        mov dl, BYTE[ecx]
+        mov BYTE[eax], dl
+        inc eax
+        inc ecx
+        jmp .parse_x
 
-	.parse_operator:
-    	pop eax ;弹出的是operator的弟子
-    	cmp BYTE[ecx], MULTI
-    	jl .invalid
-    	cmp BYTE[ecx], P
-    	jg  .invalid
-    	mov dl, BYTE[ecx]
-    	mov BYTE[eax], dl
-    	inc eax
-    	inc ecx
+    .parse_operator:
+        pop eax ;弹出的是operator的地址
+        cmp BYTE[ecx], MULTI
+        jl .invalid
+        cmp BYTE[ecx], P
+        jg  .invalid
+        mov dl, BYTE[ecx]
+        mov BYTE[eax], dl
+        inc eax
+        inc ecx
 
-    	pop eax ;弹出的是y的地址
-    	cmp BYTE[ecx], N
-    	jg .add_signal_y
-    	jmp .parse_y
+        pop eax ;弹出的是y的地址
+        cmp BYTE[ecx], N
+        jg .add_signal_y
+        jmp .parse_y
 
- 	.add_signal_y:
-    	mov dl, P	;'+'
-    	mov BYTE[eax], dl
-    	inc eax
-    	jmp .parse_y
-    	
+    .add_signal_y:
+        mov dl, P   
+        mov BYTE[eax], dl
+        inc eax
+        jmp .parse_y
+        
 
-	.parse_y:
-    	cmp BYTE[ecx], 10
-    	jz .ret_parse
-    	mov dl, BYTE[ecx]
-    	mov BYTE[eax], dl
-    	inc eax
-    	inc ecx
-    	jmp .parse_y
+    .parse_y:
+        cmp BYTE[ecx], 10
+        jz .ret_parse
+        mov dl, BYTE[ecx]
+        mov BYTE[eax], dl
+        inc eax
+        inc ecx
+        jmp .parse_y
 
-	.invalid:
-    	mov eax, msg_invalid
-    	call print_str
+    .invalid:
+        mov eax, msg_invalid
+        call print_str
         call printLF
 
-	.ret_parse:
-    	inc ecx
-    	ret
+    .ret_parse:
+        inc ecx
+        ret
 
 
 
@@ -163,55 +161,157 @@ parse_input:
 ;void cal()
 ;运算得出结果
 cal:
-	cmp BYTE[operator], MULTI
-	mov esi x
-	mov edi y
-	jz domul
-
-	mov al, BYTE[x]
-	add al, BYTE[y]
-	cmp al, 88 ; 43+45=88,说明是异号
-	jnz doadd ;同号加法
-	cmp BYTE[x], N
-	jz 	.switch ; x是正数
-	mov esi, x
-	mov edi, y
-	jmp dosub
-	.switch:  ; 交换传入顺序
-		mov esi, y
-		mov edi, x
-		jmp dosub
+    ;esi,edi分别指向x,y的尾部
+    mov eax, x
+    call slen
+    mov esi, x
+    add esi, eax
+    sub esi, 1
+    mov eax, y
+    call slen
+    mov edi, y
+    add edi, eax
+    sub edi, 1
+    ;结果默认为正数
+    mov BYTE[signal], P
+    ;判断是否乘法
+    cmp BYTE[operator], MULTI
+    ;jz domul
+    ;加法
+    mov al, BYTE[x]
+    add al, BYTE[y]
+    cmp al, 88 ; 43+45=88,说明是异号
+    jnz doadd ;同号加法
+    cmp BYTE[x], N
+    jz  .switch ; x是正数
+    ;jmp dosub
+    .switch:  ; 交换传入顺序
+        mov eax, esi
+        mov esi, edi
+        mov edi, eax
+        ;jmp dosub
 
 
 ;void doadd()
 ;同号整数相加
 doadd:
-	mov esi, x
-	mov edi, y
-	mov edx, result
+    mov edx, result ;结果地址存在edx
+    inc edx ;后续循环会先dec再存入，所以这里先inc
+    mov ecx, 0
 
-	mov eax, 0
-	mov ebx, 0
-	mov ch, 0
+    mov eax, x
+    mov ebx, y
+    mov ch, 0
+    cmp BYTE[eax], P ;判断结果符号,负号就加上'-'
+    je  .addloop
+    mov BYTE[signal], N
+
+    .addloop:
+        cmp esi, x          ;判断x是否到第一位（符号位）
+        jle .rest_y
+        cmp edi, y
+        jle .rest_x
+        mov eax, 0
+        add al, BYTE[esi]
+        sub al, ZERO        ;减去'0':48
+        add al, BYTE[edi]   ;按位加
+        add al, cl          ;加上进位
+        mov ecx, 0          ;清空进位
+        dec esi             ;移动x的指针
+        dec edi             ;移动y的指针
+        dec edx             ;移动结果的指针
+        cmp al, 58          ;判断是否越界（58=48+10）
+        mov BYTE[edx], al
+        jl  .addloop        ;没有越界则继续循环
+        call carry_digit
+        mov BYTE[eax],dl
+        jmp .addloop
+
+
+    .rest_x:
+        cmp edi, y
+        jle .end_add
+        mov eax, 0
+        add al, BYTE[edi]
+        add al, cl
+        mov ecx, 0
+        dec esi
+        dec edx
+        mov BYTE[edx], al
+        cmp al, 58
+        jl .rest_x
+        call carry_digit
+        mov BYTE[edx], al
+        jmp .rest_x
+
+    .rest_y:
+        cmp esi, x
+        jle .end_add
+        mov eax, 0
+        add al, BYTE[esi]
+        add al, cl
+        mov ecx, 0
+        dec esi
+        dec edx
+        mov BYTE[edx], al
+        cmp al, 58
+        jl .rest_y
+        call carry_digit
+        mov BYTE[edx], al
+        jmp .rest_y
+
+    .end_add:
+        cmp ecx, 1
+        jz .add_carry
+        call output_result
+        ret
+
+
+    .add_carry:
+        mov al, 49
+        dec edx
+        mov BYTE[edx], al
+        call output_result
+        ret
+
+
+;dosub:
+    
 
 
 
+;domul:
+    
 
 
+carry_digit:
+    sub al,  10
+    mov ecx, 1
+    ret
 
 
-
-dosub:
-	
-
-
-
-domul:
-	
+output_result:
+    mov eax, msg_result
+    call print_str
+    cmp BYTE[signal], N
+    jz .output_signal
+    jmp .output_num
 
 
+    .output_signal:
+        mov eax, signal
+        call print_str
+        jmp .output_num
 
 
+    .output_num:
+        mov eax, result
+        call print_str
+        call printLF
+        ret
+        
+
+        
  
 
 ;----------------工具函数------------------
@@ -224,15 +324,15 @@ domul:
 slen:
     push ebx
     mov ebx, eax
-	.nextchar:
-    	cmp BYTE[eax], 0
-    	jz .finished
-    	inc eax
-    	jmp .nextchar
-	.finished:
-    	sub eax, ebx
-    	pop ebx
-    	ret
+    .nextchar:
+        cmp BYTE[eax], 0
+        jz .finished
+        inc eax
+        jmp .nextchar
+    .finished:
+        sub eax, ebx
+        pop ebx
+        ret
 
 ;----------------------------------
 ;void memset(char*)
@@ -247,16 +347,16 @@ memset:
     call slen
     jmp .del_loop
     
-	.del_loop:
-    	and BYTE[ebx],0
-    	inc ebx
-    	dec eax
-    	cmp eax, 0
-    	jnz .del_loop
+    .del_loop:
+        and BYTE[ebx],0
+        inc ebx
+        dec eax
+        cmp eax, 0
+        jnz .del_loop
     
-    	pop ebx
-    	pop eax
-    	ret
+        pop ebx
+        pop eax
+        ret
     
     
 
@@ -283,28 +383,6 @@ print_str:
     pop edx
     
     ret
-
-;----------------------------------
-;void print_char(char*)
-;打印字符
-print_char:
-    push edx
-    push ecx
-    push ebx
-    push eax
-    
-    mov edx, 1
-    mov ecx, esp
-    mov ebx, 1
-    mov eax, 4
-    int 80h
-     
-    pop eax
-    pop ebx
-    pop ecx
-    pop edx
-    
-    ret
     
 ;----------------------------------
 ;void printLF()
@@ -318,42 +396,6 @@ printLF:
     pop eax
     pop eax
     ret
-
-
-;----------------------------------
-;void print_digit(int*)
-;打印数字
-print_digit:
-    push eax
-    push ecx
-    push edx
-    push esi
-    mov ecx, 0
-
-divideLoop:
-    inc ecx
-    mov edx, 0
-    mov esi, 10
-    idiv esi      ;商在eax，余数在edx
-    add edx, 48
-    push edx
-    cmp eax, 0
-    jnz divideLoop
-
-printLoop:
-    dec ecx
-    mov eax, esp
-    call print_char
-    pop edx
-    cmp ecx, 0
-    jnz printLoop
-
-    pop esi
-    pop edx
-    pop ecx
-    pop eax
-    ret
-
 
 ;----------------------------------
 ;void getline()
@@ -387,4 +429,5 @@ quit:
     int 80h
     ret
     
+
 
