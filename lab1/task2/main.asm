@@ -172,11 +172,14 @@ cal:
     mov edi, y
     add edi, eax
     sub edi, 1
+    ;结果地址存在edx(后续循环会先dec再存入，所以这里先inc)
+    mov edx, result
+    inc edx 
     ;结果默认为正数
     mov BYTE[signal], P
     ;判断是否乘法
     cmp BYTE[operator], MULTI
-    ;jz domul
+    jz domul
     ;加法
     mov al, BYTE[x]
     add al, BYTE[y]
@@ -184,7 +187,7 @@ cal:
     jnz doadd ;同号加法
     cmp BYTE[x], N
     jz  .switch ; x是正数
-    ;jmp dosub
+    ; jmp dosub
     .switch:  ; 交换传入顺序
         mov eax, esi
         mov esi, edi
@@ -195,13 +198,9 @@ cal:
 ;void doadd()
 ;同号整数相加
 doadd:
-    mov edx, result ;结果地址存在edx
-    inc edx ;后续循环会先dec再存入，所以这里先inc
     mov ecx, 0
-
     mov eax, x
     mov ebx, y
-    mov ch, 0
     cmp BYTE[eax], P ;判断结果符号,负号就加上'-'
     je  .addloop
     mov BYTE[signal], N
@@ -280,7 +279,15 @@ doadd:
 
 
 
-;domul:
+domul:
+    mov ecx, 0
+    mov eax, 0
+
+    .mulloop:
+        cmp edi, y
+        jle output_result ;可能有bug
+        
+
     
 
 
@@ -305,7 +312,7 @@ output_result:
 
 
     .output_num:
-        mov eax, result
+        mov eax, edx
         call print_str
         call printLF
         ret
