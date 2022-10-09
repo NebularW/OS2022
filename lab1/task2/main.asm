@@ -282,8 +282,14 @@ doadd:
 
 
 domul:
-    mov ecx, 0
-    mov eax, 0
+    mov al, BYTE[x]
+    add al, BYTE[y]
+    cmp al, 88 ; 43+45=88,说明是异号
+    je .negative
+    jmp .outter_loop
+
+    .negative:
+        mov BYTE[signal], N
 
     .outter_loop:           ; 乘法的外循环
         cmp edi, y
