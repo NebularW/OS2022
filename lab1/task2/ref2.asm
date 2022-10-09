@@ -264,7 +264,7 @@ domul:
         pop     ecx     
         add     byte[mul_res+edx+1], al
         inc     cl
-
+k
         cmp     cl, 20
         jle     .mul_driver
         inc     ch

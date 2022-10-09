@@ -223,27 +223,27 @@ doadd:
         mov BYTE[edx], al
         jl  .addloop        ;没有越界则继续循环
         call carry_digit
-        mov BYTE[eax],dl
+        mov BYTE[edx], al
         jmp .addloop
 
 
-    .rest_x:
+    .rest_y:
         cmp edi, y
         jle .end_add
         mov eax, 0
         add al, BYTE[edi]
         add al, cl
         mov ecx, 0
-        dec esi
+        dec edi
         dec edx
         mov BYTE[edx], al
         cmp al, 58
-        jl .rest_x
+        jl .rest_y
         call carry_digit
         mov BYTE[edx], al
-        jmp .rest_x
+        jmp .rest_y
 
-    .rest_y:
+    .rest_x:
         cmp esi, x
         jle .end_add
         mov eax, 0
@@ -254,10 +254,10 @@ doadd:
         dec edx
         mov BYTE[edx], al
         cmp al, 58
-        jl .rest_y
+        jl .rest_x
         call carry_digit
         mov BYTE[edx], al
-        jmp .rest_y
+        jmp .rest_x
 
     .end_add:
         cmp ecx, 1
@@ -282,12 +282,48 @@ doadd:
 domul:
     mov ecx, 0
     mov eax, 0
+    mov edx, result
 
-    .mulloop:
+    .outter_loop:
         cmp edi, y
-        jle output_result ;可能有bug
-        
+        jle .finish ;可能有bug
+        call inner_loop
+        dec edi
+        dec edx
+        jmp .outter_loop
 
+    .finish:
+        call output_result
+        ret
+
+
+
+inner_loop:
+
+    .loop:
+        cmp esi, x
+        jle .finish
+        mov eax, 0
+        mov ebx, 0
+        add al, BYTE[esi]
+        sub al, ZERO
+        add bl, BYTE[edi]
+        sub bl, ZERO
+        mul bl              ; 乘数在al和bl，结果在ax
+        add BYTE[edx], al   ; edx所指内容可能有进位的数字
+        mov al, BYTE[edx]
+        mov ah, 0
+        mov bl, 10
+        div bl              ; al保存商，ah保存余数
+        mov BYTE[edx], ah
+        dec esi             ; 移动x的指针
+        dec edx             ; 移动结果的指针
+        add BYTE[edx], al
+        jmp .loop        
+
+    .finish:
+        call output_result
+        ret
     
 
 
@@ -436,5 +472,6 @@ quit:
     int 80h
     ret
     
+
 
 
