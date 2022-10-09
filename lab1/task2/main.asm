@@ -4,15 +4,14 @@
 %define ZERO    48
 
 
-
 section .bss
-;input:      RESB    255
 x:          RESB    255
 y:          RESB    255
 input:      RESB    255
 operator:   RESB    255
 result:     RESB    255  
 signal:     RESB    255
+state       RESB    255
 
 section .data
 msg_hello       db  "Please input an expression: ",0h
@@ -39,11 +38,12 @@ _start:
     call check_quit
     cmp eax, 1
     jz .quit_loop
-    ;解析参数，计算并输出结果
-    mov eax, x
-    mov ebx, y
-    mov edx, operator
+    ;解析参数
+    mov BYTE[state], 0
     call parse_input
+    cmp BYTE[state], 1
+    je .main_loop
+    ; 计算并输出结果
     call cal
     ;清空x,y,operator,input
     mov eax, x
@@ -70,10 +70,6 @@ _start:
 ;输出
 ;eax 是'q',1;不是'q',0
 check_quit:
-    mov eax, ecx
-    call slen
-    cmp eax, 2
-    jnz .quit_check
     cmp BYTE[ecx], 113
     jnz .quit_check
     inc ecx
@@ -94,9 +90,7 @@ check_quit:
 ;ecx: 语句
 ;edx: operator地址
 parse_input:
-    push ebx
-    push edx
-    
+    mov eax, x
     cmp BYTE[ecx], N
     jg .add_signal_x
     jmp .parse_x
@@ -117,17 +111,13 @@ parse_input:
         jmp .parse_x
 
     .parse_operator:
-        pop eax ;弹出的是operator的地址
-        cmp BYTE[ecx], MULTI
-        jl .invalid
-        cmp BYTE[ecx], P
-        jg  .invalid
+        mov eax, operator
         mov dl, BYTE[ecx]
         mov BYTE[eax], dl
         inc eax
         inc ecx
 
-        pop eax ;弹出的是y的地址
+        mov eax, y
         cmp BYTE[ecx], N
         jg .add_signal_y
         jmp .parse_y
@@ -152,14 +142,15 @@ parse_input:
         mov eax, msg_invalid
         call print_str
         call printLF
+        mov BYTE[state], 1
         ret
-
+        
     .ret_parse:
-        inc ecx
+        cmp BYTE[operator], MULTI   ; 判断符号是否合法
+        jl .invalid
+        cmp BYTE[operator], P
+        jg .invalid
         ret
-
-
-
 
 ;void cal()
 ;运算得出结果
@@ -502,7 +493,6 @@ getline:
     pop edx
 
     ret
-
 
 ;----------------------------------
 ;void exit()
