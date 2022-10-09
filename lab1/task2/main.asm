@@ -152,6 +152,7 @@ parse_input:
         mov eax, msg_invalid
         call print_str
         call printLF
+        ret
 
     .ret_parse:
         inc ecx
@@ -279,17 +280,19 @@ doadd:
 ;dosub:
     
 
-
-
 domul:
     mov al, BYTE[x]
     add al, BYTE[y]
     cmp al, 88 ; 43+45=88,说明是异号
     je .negative
-    jmp .outter_loop
+    jmp .memset_mul
 
     .negative:
         mov BYTE[signal], N
+
+    .memset_mul:
+        mov eax, 0
+        mov ecx, 0
 
     .outter_loop:           ; 乘法的外循环
         cmp edi, y
@@ -298,24 +301,21 @@ domul:
         dec edi
         dec edx
         jmp .outter_loop
+        
 
-    .output_mul:            ; 将结果加上'0'的ASCII码
-        call format
-
-    .adr_loop:              ; 获取结果的首位地址
-        cmp BYTE[edx], 48
-        jnz .print_mul
-        mov ecx, result
-        inc ecx
-        cmp edx, ecx
-        je .print_mul
-        inc edx
-        jmp .adr_loop
-
-    .print_mul:             
-        call output_result
+    .output_mul:
+        mov edx, eax
+        cmp BYTE[edx], 0
+        je  .process_zero   ; 处理开头的'0'
+        call format         ; 将结果加上'0'的ASCII码
+        call output_result  ; 输出结果
         ret
 
+    .process_zero:
+        inc edx
+        call format         ; 将结果加上'0'的ASCII码
+        call output_result  ; 输出结果
+        ret
 
 inner_loop:
     push esi
@@ -349,8 +349,6 @@ inner_loop:
         pop ebx
         pop esi
         ret
-    
-
 
 carry_digit:
     sub al,  10
@@ -361,18 +359,19 @@ carry_digit:
 format:
     push edx
     push eax
+    ; cmp BYTE[edx], 0
+    ; je .process_zero
+    ; jmp .loop
+   
+    ; .process_zero:
+    ;     and BYTE[edx], 0
+    ;     inc edx
 
     .loop:
         mov eax, result
         inc eax
         cmp edx, eax
         jge .finished
-        ;debug
-        push eax
-        mov eax, 0
-        mov al, BYTE[edx]
-        pop eax
-
         add BYTE[edx], ZERO
         inc edx
         jmp .loop
@@ -381,8 +380,6 @@ format:
         pop eax
         pop edx
         ret
-
-
 
 output_result:
     mov eax, msg_result
@@ -403,10 +400,6 @@ output_result:
         call print_str
         call printLF
         ret
-        
-
-        
- 
 
 ;----------------工具函数------------------
 ;int slen(char*)
@@ -442,7 +435,7 @@ memset:
     jmp .del_loop
     
     .del_loop:
-        and BYTE[ebx],0
+        and BYTE[ebx], 0
         inc ebx
         dec eax
         cmp eax, 0
@@ -452,9 +445,6 @@ memset:
         pop eax
         ret
     
-    
-
-
 ;----------------------------------
 ;void print_str(char*)
 ;打印字符串
@@ -522,7 +512,3 @@ quit:
     mov eax, 1
     int 80h
     ret
-    
-
-
-
