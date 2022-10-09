@@ -54,6 +54,8 @@ _start:
     call memset
     mov eax, input
     call memset
+    mov eax, edx
+    call memset
     ;继续接收输入
     jmp .main_loop
 
@@ -172,9 +174,8 @@ cal:
     mov edi, y
     add edi, eax
     sub edi, 1
-    ;结果地址存在edx(后续循环会先dec再存入，所以这里先inc)
+    ;结果地址存在edx
     mov edx, result
-    inc edx 
     ;结果默认为正数
     mov BYTE[signal], P
     ;判断是否乘法
@@ -198,6 +199,7 @@ cal:
 ;void doadd()
 ;同号整数相加
 doadd:
+    inc edx
     mov ecx, 0
     mov eax, x
     mov ebx, y
@@ -282,23 +284,37 @@ doadd:
 domul:
     mov ecx, 0
     mov eax, 0
-    mov edx, result
 
-    .outter_loop:
+    .outter_loop:           ; 乘法的外循环
         cmp edi, y
-        jle .finish ;可能有bug
+        jle .output_mul
         call inner_loop
         dec edi
         dec edx
         jmp .outter_loop
 
-    .finish:
+    .output_mul:            ; 将结果加上'0'的ASCII码
+        call format
+
+    .adr_loop:              ; 获取结果的首位地址
+        cmp BYTE[edx], 48
+        jnz .print_mul
+        mov ecx, result
+        inc ecx
+        cmp edx, ecx
+        je .print_mul
+        inc edx
+        jmp .adr_loop
+
+    .print_mul:             
         call output_result
         ret
 
 
-
 inner_loop:
+    push esi
+    push ebx
+    push edx
 
     .loop:
         cmp esi, x
@@ -322,7 +338,10 @@ inner_loop:
         jmp .loop        
 
     .finish:
-        call output_result
+        mov eax, edx
+        pop edx
+        pop ebx
+        pop esi
         ret
     
 
@@ -331,6 +350,32 @@ carry_digit:
     sub al,  10
     mov ecx, 1
     ret
+
+
+format:
+    push edx
+    push eax
+
+    .loop:
+        mov eax, result
+        inc eax
+        cmp edx, eax
+        jge .finished
+        ;debug
+        push eax
+        mov eax, 0
+        mov al, BYTE[edx]
+        pop eax
+
+        add BYTE[edx], ZERO
+        inc edx
+        jmp .loop
+
+    .finished:
+        pop eax
+        pop edx
+        ret
+
 
 
 output_result:
