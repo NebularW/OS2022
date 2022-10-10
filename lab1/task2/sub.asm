@@ -76,7 +76,7 @@ check_quit:
     cmp BYTE[ecx], 10
     mov eax, 1
     ret
-    
+   
 .quit_check:
     mov eax, 0
     ret 
@@ -180,12 +180,12 @@ cal:
     jnz doadd ;同号加法
     cmp BYTE[x], N
     jz  .switch ; x是正数
-    ; jmp dosub
+    jmp dosub
     .switch:  ; 交换传入顺序
         mov eax, esi
         mov esi, edi
         mov edi, eax
-        ;jmp dosub
+        jmp dosub
 
 
 ;void doadd()
@@ -267,9 +267,39 @@ doadd:
         call output_result
         ret
 
+;esi被减数，edi减数
+dosub:
+    mov BYTE[sign], P   ; 结果默认为正
+    mov edx, 0          ; 计数器
+    .subloop:
+        inc esi
+        inc edi
+        mov bl, 0
+        inc edx
+        cmp edx, 22
+        je .modify      ; 每一位都减完就进入下一环节
 
-;dosub:
+        sub BYTE[esi], ZERO
+        sub BYTE[edi], ZERO
+        mov bl, BYTE[esi]
+        mov cl, BYTE[edi]
+        sub bl, cl
+
+        mov BYTE[result+edx], bl
+        jmp .subloop
+
+    .modify:
+        mov edx, 0
+    .modifyloop:
+        inc edx
+        cmp edx, 21
+        je  .backwave
+        mov al, 0
+    .inner:
+        
     
+    .backwave:
+
 
 domul:
     mov al, BYTE[x]
@@ -350,13 +380,6 @@ carry_digit:
 format:
     push edx
     push eax
-    ; cmp BYTE[edx], 0
-    ; je .process_zero
-    ; jmp .loop
-   
-    ; .process_zero:
-    ;     and BYTE[edx], 0
-    ;     inc edx
 
     .loop:
         mov eax, result
