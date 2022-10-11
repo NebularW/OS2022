@@ -271,6 +271,8 @@ doadd:
 dosub:
     mov BYTE[sign], P   ; 结果默认为正
     mov edx, 0          ; 计数器
+    mov esi, x
+    mov edi, y
     .subloop:
         inc esi
         inc edi
@@ -279,7 +281,7 @@ dosub:
         cmp edx, 22
         je .modify      ; 每一位都减完就进入下一环节
 
-        sub BYTE[esi], ZERO
+        sub BYTE[esi], ZERO     ; bug here:10-9，9的下一位是空，不应该减去'0'
         sub BYTE[edi], ZERO
         mov bl, BYTE[esi]
         mov cl, BYTE[edi]
@@ -351,6 +353,7 @@ dosub:
         jmp .last_modify
     .done:
         mov edx, result
+        call format
         inc edx
         call output_result
         ret
