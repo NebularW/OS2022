@@ -10,7 +10,7 @@ y:          RESB    255
 input:      RESB    255
 operator:   RESB    255
 result:     RESB    255  
-signal:     RESB    255
+sign:       RESB    255
 state       RESB    255
 
 section .data
@@ -92,10 +92,10 @@ check_quit:
 parse_input:
     mov eax, x
     cmp BYTE[ecx], N
-    jg .add_signal_x
+    jg .add_sign_x
     jmp .parse_x
 
-    .add_signal_x:
+    .add_sign_x:
         mov dl, P
         mov BYTE[eax], dl
         inc eax
@@ -119,10 +119,10 @@ parse_input:
 
         mov eax, y
         cmp BYTE[ecx], N
-        jg .add_signal_y
+        jg .add_sign_y
         jmp .parse_y
 
-    .add_signal_y:
+    .add_sign_y:
         mov dl, P   
         mov BYTE[eax], dl
         inc eax
@@ -169,7 +169,7 @@ cal:
     ;结果地址存在edx
     mov edx, result
     ;结果默认为正数
-    mov BYTE[signal], P
+    mov BYTE[sign], P
     ;判断是否乘法
     cmp BYTE[operator], MULTI
     jz domul
@@ -197,7 +197,7 @@ doadd:
     mov ebx, y
     cmp BYTE[eax], P ;判断结果符号,负号就加上'-'
     je  .addloop
-    mov BYTE[signal], N
+    mov BYTE[sign], N
 
     .addloop:
         cmp esi, x          ;判断x是否到第一位（符号位）
@@ -296,10 +296,64 @@ dosub:
         je  .backwave
         mov al, 0
     .inner:
-        
-    
-    .backwave:
+        push eax
+        push edx
+        mov edx, 0
+        mov dl, 10
+        mul dl
+        pop edx
+        add al, BYTE[result+edx]
+        cmp al, 0
+        jl .continue
 
+        mov BYTE[result+edx], al
+        pop eax
+        sub BYTE[result+edx+1], al
+        jmp .modifyloop
+    .continue:        
+        pop eax
+        inc al
+        jmp .inner
+    .backwave:
+        ;如果首位是正，说明结果为正，直接返回
+        ;首位为负，需要不断向后（高位到低位）修正结果，方法名也源于此
+        cmp BYTE[result+22-1], 0
+        jge .done   ; 减法完成
+        mov BYTE[sign], N
+        mov edx, 21
+    .negative_proc:
+        ;把高位的-1往低位推
+        cmp edx, 1
+        je .first_proc
+        cmp BYTE[result+edx-1], 0
+        jl .abs
+        sub BYTE[result+edx-1], 10
+        add BYTE[result+edx], 1
+    .abs:
+        ;化负为正
+        mov al, BYTE[result+edx]
+        mov BYTE[result+edx], 0
+        sub BYTE[result+edx], al
+        dec edx
+        jmp .negative_proc
+    .first_proc:
+        ;上述过程可能会把第一位（个位）修正为10,需要手动处理
+        mov al, BYTE[result+1]
+        mov BYTE[result+1], 0
+        sub BYTE[result+1], al
+        mov ebx, 1
+    .last_modify:
+        cmp BYTE[result+ebx], 10
+        jl .done
+        mov BYTE[result+ebx], 0
+        add BYTE[result+ebx+1], 1
+        inc ebx
+        jmp .last_modify
+    .done:
+        mov edx, result
+        inc edx
+        call output_result
+        ret
 
 domul:
     mov al, BYTE[x]
@@ -309,7 +363,7 @@ domul:
     jmp .memset_mul
 
     .negative:
-        mov BYTE[signal], N
+        mov BYTE[sign], N
 
     .memset_mul:
         mov eax, 0
@@ -398,13 +452,13 @@ format:
 output_result:
     mov eax, msg_result
     call print_str
-    cmp BYTE[signal], N
-    jz .output_signal
+    cmp BYTE[sign], N
+    jz .output_sign
     jmp .output_num
 
 
-    .output_signal:
-        mov eax, signal
+    .output_sign:
+        mov eax, sign
         call print_str
         jmp .output_num
 
