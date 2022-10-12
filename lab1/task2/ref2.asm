@@ -1,5 +1,5 @@
-%define	MAXL   	22
-%define MUL_MAX	42
+%define MAXL    22
+%define MUL_MAX 42
 %define INF     46
 %define LF      10
 %define SPACE   32
@@ -8,27 +8,27 @@
 %define ZERO    48
 
 ;2个数最多需要22位，剩下2位留给中间的空格和最后的换行符
-section	.data
-	msg:		db	"Please input x and y: ",0Ah
+section .data
+    msg:        db  "Please input x and y: ",0Ah
     ;.len:       equ $-msg;msg的长度
     mul_res:    times   MUL_MAX db  0
-section	.bss
+section .bss
     buffer      resb    INF
-	;store the numstr
-	strx:		resb	MAXL
+    ;store the numstr
+    strx:       resb    MAXL
     stry:       resb    MAXL
     add_res:    resb    MAXL
-	
-section	.text
+    
+section .text
 global main;使用gcc编译，因此函数名必须为main
 
 main:
-	mov		eax, msg
-	call	sprint;输出提示信息
-	
-	call	readnums
-	
-	mov     eax, LF
+    mov     eax, msg
+    call    sprint;输出提示信息
+    
+    call    readnums
+    
+    mov     eax, LF
     push    eax;栈底的空格，标志着出栈结束
 
     mov     eax, buffer
@@ -76,12 +76,12 @@ cont:
 
 ;读取输入
 readnums:
-	mov     edx, INF;nums of bytes to read
+    mov     edx, INF;nums of bytes to read
     mov     ecx, buffer;des
     mov     ebx, 0;stdin
     mov     eax, 3;sys_read       
     int     80h
-	ret
+    ret
 
 judge:
 ;判断两数是同号还是异号，同加异减
@@ -134,7 +134,7 @@ add_driver:
         mov     eax, ebx
         mov     ebx, 10
         push    edx;结果的地址
-        mov		edx, 0;edx寄存器清0
+        mov     edx, 0;edx寄存器清0
         div     ebx
         ;divide eax by 10
         ;the result is saved in eax
@@ -146,9 +146,9 @@ add_driver:
     .finish:
         ret
 
-;sub: esi-ebi, the one in esi in positive
+;sub: esi-edi, the one in esi in positive
 ;the final sign is to be judged
-dosub:	
+dosub:  
     call    sub_driver
     jmp     domul
 sub_driver:
@@ -180,11 +180,11 @@ sub_driver:
         mov     al, 0
     .inner:
         push    eax
-		push	edx
-		mov		edx, 0
+        push    edx
+        mov     edx, 0
         mov     dl, 10
         mul     dl
-		pop		edx
+        pop     edx
         add     al, byte[add_res+edx]
         cmp     al, 0
         
@@ -264,7 +264,7 @@ domul:
         pop     ecx     
         add     byte[mul_res+edx+1], al
         inc     cl
-k
+
         cmp     cl, 20
         jle     .mul_driver
         inc     ch
@@ -345,18 +345,18 @@ printres:
         call    printLF
         ret;因为无法确定输出的是加还是减，所以这里需要返回
 
-	
+    
 ;===========================工具函数===================================
 ;get the len of a string
 ;use ebx and eax
 ;the address of char is stored in eax
 ;the result stored in eax
 strlen:
-    push	ebx
-    mov		ebx, eax
+    push    ebx
+    mov     ebx, eax
     .nextchar:
         cmp     byte[eax], 0
-        jz    	.count_fin
+        jz      .count_fin
         inc     eax
         jmp     .nextchar
     .count_fin:
@@ -367,7 +367,7 @@ strlen:
 
 ;string print
 sprint:
-	;src addr of the string is stored in eax
+    ;src addr of the string is stored in eax
     push    edx
     push    ecx
     push    ebx
@@ -375,7 +375,7 @@ sprint:
     call    strlen
  
     mov     edx, eax;length
-	
+    
     pop     eax
  
     mov     ecx, eax;src string
@@ -392,7 +392,7 @@ sprint:
 ;char print
 ;the address of char is stored in eax
 cprint:
-	;save into stack
+    ;save into stack
     push    edx
     push    ecx
     push    ebx
@@ -402,25 +402,25 @@ cprint:
     mov     ebx, 1
     mov     eax, 4;system_write
     int     80h
- 	;return
+    ;return
     pop     ebx
     pop     ecx
     pop     edx
     ret
-	
+    
 ;print linefeed
 printLF:
-	push    eax         ; push eax onto the stack to preserve it while we use the eax register in this function
+    push    eax         ; push eax onto the stack to preserve it while we use the eax register in this function
     mov     eax, 0Ah    ; move 0Ah into eax
     push    eax         ; push the linefeed onto the stack so we can get the address
     mov     eax, esp    ; move the address of the current stack pointer into eax for sprint
     call    cprint      ; call cprint
     pop     eax         ; remove the linefeed char
     pop     eax         ; restore the original value of eax before our function was called
-    ret                 	
+    ret                     
 ;exit()
 quit:
-	mov		ebx, 0
-	mov 	eax, 1
-	int		80h
-	ret
+    mov     ebx, 0
+    mov     eax, 1
+    int     80h
+    ret

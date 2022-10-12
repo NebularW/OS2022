@@ -178,14 +178,7 @@ cal:
     add al, BYTE[y]
     cmp al, 88 ; 43+45=88,说明是异号
     jnz doadd ;同号加法
-    cmp BYTE[x], N
-    jz  .switch ; x是正数
     jmp dosub
-    .switch:  ; 交换传入顺序
-        mov eax, esi
-        mov esi, edi
-        mov edi, eax
-        jmp dosub
 
 
 ;void doadd()
@@ -271,7 +264,17 @@ doadd:
 dosub:
     mov BYTE[sign], P   ; 结果默认为正
     mov edx, 0          ; 计数器
-    call get_sub_operand; 获取操作数，esi指向被减数，edi指向减数，（减去'0')
+    call get_sub_operand; 获取操作数，esi指向被减数，edi指向减数，（减去'0'）
+    cmp BYTE[x], N
+    jz  .switch ; x是负数
+    jmp .subloop
+
+    .switch:  ; 交换传入顺序
+        mov eax, esi
+        mov esi, edi
+        mov edi, eax
+
+
     .subloop:
         inc esi
         inc edi
@@ -351,8 +354,7 @@ dosub:
         jmp .last_modify
     .done:
         mov edx, result
-        call format
-        inc edx
+        call sub_format
         call output_result
         ret
 
@@ -434,35 +436,70 @@ carry_digit:
 get_sub_operand:
     ;去除符号，减去'0'，esi和edi指向22位数字的开头
     push eax
+    push ebx
     push edx
     .get_x:
-        mov BYTE[x],0
         mov eax, x
         inc eax
     .x_loop:
         cmp BYTE[eax], 0
         je .x_finish
         sub BYTE[eax], ZERO
+        mov bl, BYTE[eax]
+        mov BYTE[eax+22], bl
+        inc eax
+        jmp .x_loop
     .x_finish:
         mov esi, eax
-        sub esi, 22
     .get_y:
-        mov BYTE[y], 0
         mov eax, y
         inc eax
     .y_loop:
         cmp BYTE[eax], 0
         je .y_finish
         sub BYTE[eax], ZERO
+        mov bl, BYTE[eax]
+        mov BYTE[eax+22], bl
+        inc eax
+        jmp .y_loop
     .y_finish:
         mov edi, eax
-        sub edi, 22
     pop edx
+    pop ebx
     pop eax
     ret
 
 
+
+sub_format:
+    ; 用于减法结果加'0'
+    push eax
+    mov eax, 22
+    ; 去除开头的0
+    .process_zero:
+        cmp BYTE[edx], 0
+        push edx
+        jnz .loop
+        pop edx
+        inc edx
+        dec eax
+        jmp .process_zero
+    .loop:
+        add BYTE[edx], ZERO
+        inc edx
+        dec eax
+        cmp eax, 0
+        jnz .loop
+        pop edx
+        pop eax
+        ret
+
+        
+
+
+
 format:
+    ; edx指向结果的开头（低地址）
     push edx
     push eax
 
@@ -529,15 +566,13 @@ memset:
     push ebx
     push eax
     
-    mov ebx, eax
-    call slen
-    jmp .del_loop
+    mov ebx, 255
     
     .del_loop:
-        and BYTE[ebx], 0
-        inc ebx
-        dec eax
-        cmp eax, 0
+        and BYTE[eax], 0
+        inc eax
+        dec ebx
+        cmp ebx, 0
         jnz .del_loop
     
         pop ebx
