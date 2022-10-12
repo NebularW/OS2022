@@ -271,8 +271,7 @@ doadd:
 dosub:
     mov BYTE[sign], P   ; 结果默认为正
     mov edx, 0          ; 计数器
-    mov esi, x
-    mov edi, y
+    call get_sub_operand; 获取操作数，esi指向被减数，edi指向减数，（减去'0')
     .subloop:
         inc esi
         inc edi
@@ -281,8 +280,7 @@ dosub:
         cmp edx, 22
         je .modify      ; 每一位都减完就进入下一环节
 
-        sub BYTE[esi], ZERO     ; bug here:10-9，9的下一位是空，不应该减去'0'
-        sub BYTE[edi], ZERO
+
         mov bl, BYTE[esi]
         mov cl, BYTE[edi]
         sub bl, cl
@@ -431,6 +429,36 @@ inner_loop:
 carry_digit:
     sub al,  10
     mov ecx, 1
+    ret
+
+get_sub_operand:
+    ;去除符号，减去'0'，esi和edi指向22位数字的开头
+    push eax
+    push edx
+    .get_x:
+        mov BYTE[x],0
+        mov eax, x
+        inc eax
+    .x_loop:
+        cmp BYTE[eax], 0
+        je .x_finish
+        sub BYTE[eax], ZERO
+    .x_finish:
+        mov esi, eax
+        sub esi, 22
+    .get_y:
+        mov BYTE[y], 0
+        mov eax, y
+        inc eax
+    .y_loop:
+        cmp BYTE[eax], 0
+        je .y_finish
+        sub BYTE[eax], ZERO
+    .y_finish:
+        mov edi, eax
+        sub edi, 22
+    pop edx
+    pop eax
     ret
 
 
