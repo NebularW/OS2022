@@ -446,12 +446,12 @@ print_str:
     push eax
     
     call slen
-    mov edx, eax
-    pop eax
-    mov ecx, eax
-    mov ebx, 1
-    mov eax, 4
-    int 80h
+    mov edx, eax        ;含有字符串的长度信息（单位：Byte）
+    pop eax             ;含有字符串的地址（指向字符串的指针）
+    mov ecx, eax        
+    mov ebx, 1          ;文件输出（这是标准输出 STDOUT 到屏幕，也可以输出到文件）
+    mov eax, 4          ;当 EAX 设置为 4 将调用 sys_write 时请求中断 
+    int 80h             ;调用linux系统中断，在屏幕上输出字符串 
     
     pop ebx
     pop ecx
@@ -481,11 +481,11 @@ getline:
     push ebx
     push eax
 
-    mov edx, ebx
-    mov ecx, eax
-    mov ebx, 1
-    mov eax, 3
-    int 80h
+    mov edx, ebx   ;EDX 为缓冲区大小(以字节为单位)
+    mov ecx, eax   ;ECX 为在 .bss 部分中创建的变量的地址(变量名) 
+    mov ebx, 1     ;EBX 为我们想要写入的文件，在这种情况下为 STDIN(标准输入，键盘)。
+    mov eax, 3     
+    int 80h         
     
     pop eax
     pop ebx
@@ -498,7 +498,7 @@ getline:
 ;void exit()
 ;退出程序
 quit:
-    mov ebx, 0
+    mov ebx, 0  ;表明程序是正常退出
     mov eax, 1
     int 80h
     ret
