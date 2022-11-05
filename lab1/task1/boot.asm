@@ -1,7 +1,6 @@
     org 07c00h              ; 告诉编译器程序加载到7c00处
     mov ax, cs              
     mov ds, ax
-    mov es, ax
     call  DispStr           ; 调用显示字符串例程
     jmp $                   ; 无限循环
 DispStr:
@@ -14,6 +13,5 @@ DispStr:
     int 10h                 ; 10h 号中断
     ret
 BootMessage:        db  "Hello, OS world!"
-times   510-($-$$)  db  0   ; 填充剩下的空间，使生成的二进制代码恰好为512字节
-dw  0xaa55                  ; 结束标志
-
+times   510-($-$$)  db  0   ; 填充剩下的空间，使生成的二进制代码恰好为512
+dw  0xaa55

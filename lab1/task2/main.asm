@@ -10,7 +10,7 @@ y:          RESB    255
 input:      RESB    255
 operator:   RESB    255
 result:     RESB    255  
-signal:     RESB    255
+sign:       RESB    255
 state       RESB    255
 
 section .data
@@ -76,7 +76,7 @@ check_quit:
     cmp BYTE[ecx], 10
     mov eax, 1
     ret
-    
+   
 .quit_check:
     mov eax, 0
     ret 
@@ -92,10 +92,10 @@ check_quit:
 parse_input:
     mov eax, x
     cmp BYTE[ecx], N
-    jg .add_signal_x
+    jg .add_sign_x
     jmp .parse_x
 
-    .add_signal_x:
+    .add_sign_x:
         mov dl, P
         mov BYTE[eax], dl
         inc eax
@@ -119,10 +119,10 @@ parse_input:
 
         mov eax, y
         cmp BYTE[ecx], N
-        jg .add_signal_y
+        jg .add_sign_y
         jmp .parse_y
 
-    .add_signal_y:
+    .add_sign_y:
         mov dl, P   
         mov BYTE[eax], dl
         inc eax
@@ -169,7 +169,7 @@ cal:
     ;结果地址存在edx
     mov edx, result
     ;结果默认为正数
-    mov BYTE[signal], P
+    mov BYTE[sign], P
     ;判断是否乘法
     cmp BYTE[operator], MULTI
     jz domul
@@ -178,14 +178,7 @@ cal:
     add al, BYTE[y]
     cmp al, 88 ; 43+45=88,说明是异号
     jnz doadd ;同号加法
-    cmp BYTE[x], N
-    jz  .switch ; x是正数
-    ; jmp dosub
-    .switch:  ; 交换传入顺序
-        mov eax, esi
-        mov esi, edi
-        mov edi, eax
-        ;jmp dosub
+    jmp dosub
 
 
 ;void doadd()
@@ -197,7 +190,7 @@ doadd:
     mov ebx, y
     cmp BYTE[eax], P ;判断结果符号,负号就加上'-'
     je  .addloop
-    mov BYTE[signal], N
+    mov BYTE[sign], N
 
     .addloop:
         cmp esi, x          ;判断x是否到第一位（符号位）
@@ -267,9 +260,103 @@ doadd:
         call output_result
         ret
 
+;esi被减数，edi减数
+dosub:
+    mov BYTE[sign], P   ; 结果默认为正
+    mov edx, 0          ; 计数器
+    call get_sub_operand; 获取操作数，esi指向被减数，edi指向减数，（减去'0'）
+    cmp BYTE[x], N
+    jz  .switch ; x是负数
+    jmp .subloop
 
-;dosub:
-    
+    .switch:  ; 交换传入顺序
+        mov eax, esi
+        mov esi, edi
+        mov edi, eax
+
+
+    .subloop:
+        inc esi
+        inc edi
+        mov bl, 0
+        inc edx
+        cmp edx, 22
+        je .modify      ; 每一位都减完就进入下一环节
+
+
+        mov bl, BYTE[esi]
+        mov cl, BYTE[edi]
+        sub bl, cl
+
+        mov BYTE[result+edx], bl
+        jmp .subloop
+
+    .modify:
+        mov edx, 0
+    .modifyloop:
+        inc edx
+        cmp edx, 21
+        je  .backwave
+        mov al, 0
+    .inner:
+        push eax
+        push edx
+        mov edx, 0
+        mov dl, 10
+        mul dl
+        pop edx
+        add al, BYTE[result+edx]
+        cmp al, 0
+        jl .continue
+
+        mov BYTE[result+edx], al
+        pop eax
+        sub BYTE[result+edx+1], al
+        jmp .modifyloop
+    .continue:        
+        pop eax
+        inc al
+        jmp .inner
+    .backwave:
+        ;如果首位是正，说明结果为正，直接返回
+        ;首位为负，需要不断向后（高位到低位）修正结果，方法名也源于此
+        cmp BYTE[result+22-1], 0
+        jge .done   ; 减法完成
+        mov BYTE[sign], N
+        mov edx, 21
+    .negative_proc:
+        ;把高位的-1往低位推
+        cmp edx, 1
+        je .first_proc
+        cmp BYTE[result+edx-1], 0
+        jl .abs
+        sub BYTE[result+edx-1], 10
+        add BYTE[result+edx], 1
+    .abs:
+        ;化负为正
+        mov al, BYTE[result+edx]
+        mov BYTE[result+edx], 0
+        sub BYTE[result+edx], al
+        dec edx
+        jmp .negative_proc
+    .first_proc:
+        ;上述过程可能会把第一位（个位）修正为10,需要手动处理
+        mov al, BYTE[result+1]
+        mov BYTE[result+1], 0
+        sub BYTE[result+1], al
+        mov ebx, 1
+    .last_modify:
+        cmp BYTE[result+ebx], 10
+        jl .done
+        mov BYTE[result+ebx], 0
+        add BYTE[result+ebx+1], 1
+        inc ebx
+        jmp .last_modify
+    .done:
+        mov edx, result
+        call sub_format
+        call output_result
+        ret
 
 domul:
     mov al, BYTE[x]
@@ -279,7 +366,7 @@ domul:
     jmp .memset_mul
 
     .negative:
-        mov BYTE[signal], N
+        mov BYTE[sign], N
 
     .memset_mul:
         mov eax, 0
@@ -346,17 +433,75 @@ carry_digit:
     mov ecx, 1
     ret
 
+get_sub_operand:
+    ;去除符号，减去'0'，esi和edi指向22位数字的开头
+    push eax
+    push ebx
+    push edx
+    .get_x:
+        mov eax, x
+        inc eax
+    .x_loop:
+        cmp BYTE[eax], 0
+        je .x_finish
+        sub BYTE[eax], ZERO
+        mov bl, BYTE[eax]
+        mov BYTE[eax+22], bl
+        inc eax
+        jmp .x_loop
+    .x_finish:
+        mov esi, eax
+    .get_y:
+        mov eax, y
+        inc eax
+    .y_loop:
+        cmp BYTE[eax], 0
+        je .y_finish
+        sub BYTE[eax], ZERO
+        mov bl, BYTE[eax]
+        mov BYTE[eax+22], bl
+        inc eax
+        jmp .y_loop
+    .y_finish:
+        mov edi, eax
+    pop edx
+    pop ebx
+    pop eax
+    ret
+
+
+
+sub_format:
+    ; 用于减法结果加'0'
+    push eax
+    mov eax, 22
+    ; 去除开头的0
+    .process_zero:
+        cmp BYTE[edx], 0
+        push edx
+        jnz .loop
+        pop edx
+        inc edx
+        dec eax
+        jmp .process_zero
+    .loop:
+        add BYTE[edx], ZERO
+        inc edx
+        dec eax
+        cmp eax, 0
+        jnz .loop
+        pop edx
+        pop eax
+        ret
+
+        
+
+
 
 format:
+    ; edx指向结果的开头（低地址）
     push edx
     push eax
-    ; cmp BYTE[edx], 0
-    ; je .process_zero
-    ; jmp .loop
-   
-    ; .process_zero:
-    ;     and BYTE[edx], 0
-    ;     inc edx
 
     .loop:
         mov eax, result
@@ -375,13 +520,13 @@ format:
 output_result:
     mov eax, msg_result
     call print_str
-    cmp BYTE[signal], N
-    jz .output_signal
+    cmp BYTE[sign], N
+    jz .output_sign
     jmp .output_num
 
 
-    .output_signal:
-        mov eax, signal
+    .output_sign:
+        mov eax, sign
         call print_str
         jmp .output_num
 
@@ -421,15 +566,13 @@ memset:
     push ebx
     push eax
     
-    mov ebx, eax
-    call slen
-    jmp .del_loop
+    mov ebx, 255
     
     .del_loop:
-        and BYTE[ebx], 0
-        inc ebx
-        dec eax
-        cmp eax, 0
+        and BYTE[eax], 0
+        inc eax
+        dec ebx
+        cmp ebx, 0
         jnz .del_loop
     
         pop ebx
