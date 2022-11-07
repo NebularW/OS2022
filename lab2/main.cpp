@@ -13,16 +13,18 @@ typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 typedef unsigned int uint32_t;
 
+char* stringToChar(const string& str){
+    char *strs = new char[str.length() + 1];
+    strcpy(strs, str.c_str());
+    return strs;
+}
+
 vector<string> split(const string& str, const string& delim) {
     vector <string> res;
     if ("" == str) return res;
     //先将要切割的字符串从string类型转换为char*类型
-    char *strs = new char[str.length() + 1]; //不要忘了
-    strcpy(strs, str.c_str());
-
-    char *d = new char[delim.length() + 1];
-    strcpy(d, delim.c_str());
-
+    char *strs = stringToChar(str);
+    char *d = stringToChar(delim);
     char *p = strtok(strs, d);
     while (p) {
         string s = p; //分割得到的字符串转换为string类型
@@ -457,12 +459,14 @@ void outputLS(Node *r) {
         for (int i = 0; i < len; i++) {
             q = p->getNext()[i];
             if (!q->getIsFile()) {
-                cout << "\033[31m" << q->getName() << "\033[0m"<<"  ";
+                string out = "\033[31m" + q->getName() + "\033[0m" + "  ";
+                myPrint(stringToChar(out));
             } else {
-                cout << q->getName() << " ";
+                myPrint(stringToChar(q->getName()));
+                myPrint(" ");
             }
         }
-        cout << endl;
+        myPrint(stringToChar("\n"));
         for (int i = 0; i < len; ++i) {
             if (p->getNext()[i]->getIsVal()) {
                 outputLS(p->getNext()[i]);
@@ -496,7 +500,8 @@ void outputLSL(Node *r) {
         /*
          * 看起来很丑，但是有效
          */
-        cout << p->getPath() << " " << dirNum << " " << fileNum << endl;
+        string out = p->getPath() + " " + to_string(dirNum) + " " + to_string(fileNum) + "\n";
+        myPrint(stringToChar(out));
         str.clear();
         //打印每个next
         Node *q;
@@ -505,7 +510,8 @@ void outputLSL(Node *r) {
             q = p->getNext()[i];
             if (!q->getIsFile()) {
                 if (q->getName() == "." || q->getName() == "..") {
-                    cout << "\033[31m" << q->getName() << "\033[0m"<<" " << endl;
+                    string out = "\033[31m" + q->getName() + "\033[0m" + " " + "\n";
+                    myPrint(stringToChar(out));
                 } else {
                     fileNum = 0;
                     dirNum = 0;
@@ -516,13 +522,15 @@ void outputLSL(Node *r) {
                             dirNum++;
                         }
                     }
-                    cout << "\033[31m" << q->getName() << "\033[0m" << " " << dirNum << " " << fileNum << endl;
+                    string out = "\033[31m" + q->getName() + "\033[0m" + " " + to_string(dirNum) + " " + to_string(fileNum) + "\n";
+                    myPrint(stringToChar(out));
                 }
             } else {
-                cout << q->getName() << " " << q->getFileSize() << endl;
+                string out = q->getName() + " " + to_string(q->getFileSize()) + "\n";
+                myPrint(stringToChar(out));
             }
         }
-        cout << endl;
+        myPrint(stringToChar("\n"));
         for (int i = 0; i < len; ++i) {
             if (p->getNext()[i]->getIsVal()) {
                 outputLSL(p->getNext()[i]);
@@ -592,7 +600,7 @@ void handleLS(vector<string> commands, Node* root) {
 int main()
 {
     FILE *fat12;
-    fat12 = fopen("/Users/wyh0111jx/CLionProjects/oslab/a.img", "rb"); //打开FAT12的映像文件
+    fat12 = fopen("./a.img", "rb"); //打开FAT12的映像文件
 
     BPB *bpb = new BPB();
     bpb->init(fat12);
@@ -608,7 +616,7 @@ int main()
         getline(cin, input);
         vector<string> commands = split(input, " ");
         if (commands[0] == "exit") {
-            myPrint("Bye!");
+            myPrint("Bye!\n");
             fclose(fat12);
             break;
         } else if (commands[0] == "cat") {
