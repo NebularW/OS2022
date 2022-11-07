@@ -31,7 +31,6 @@ vector<string> split(const string& str, const string& delim) {
         res.push_back(s); //存入结果数组
         p = strtok(NULL, d);
     }
-
     return res;
 }
 
@@ -497,9 +496,7 @@ void outputLSL(Node *r) {
                 dirNum++;
             }
         }
-        /*
-         * 看起来很丑，但是有效
-         */
+        
         string out = p->getPath() + " " + to_string(dirNum) + " " + to_string(fileNum) + "\n";
         myPrint(stringToChar(out));
         str.clear();
