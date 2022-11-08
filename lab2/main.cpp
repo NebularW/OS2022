@@ -9,10 +9,27 @@
 
 using namespace std;
 
-typedef unsigned char uint8_t;
-typedef unsigned short uint16_t;
-typedef unsigned int uint32_t;
+typedef unsigned char uint8;      //1字节
+typedef unsigned short uint16;    //2字节
+typedef unsigned int uint32;      //4字节
 
+//---------------------以下是FAT12 全局变量---------------------------
+int BytsPerSec;			//每扇区字节数
+int SecPerClus;			//每簇扇区数
+int RsvdSecCnt;			//引导扇区数
+int NumFATs;			//FAT表个数
+int RootEntCnt;			//根目录最大文件数
+int FATSz;				//FAT扇区数
+
+//FAT12的偏移字节
+int fatBase;            //FAT表偏移
+int fileRootBase;       //根目录区偏移
+int dataBase;           //数据区偏移
+int BytsPerClus;        //每簇字节数
+
+
+
+//---------------------以下是工具函数---------------------------
 char* stringToChar(const string& str){
     char *strs = new char[str.length() + 1];
     strcpy(strs, str.c_str());
@@ -25,21 +42,24 @@ vector<string> split(const string& str, const string& delim) {
     //先将要切割的字符串从string类型转换为char*类型
     char *strs = stringToChar(str);
     char *d = stringToChar(delim);
-    char *p = strtok(strs, d);
-    while (p) {
-        string s = p; //分割得到的字符串转换为string类型
-        res.push_back(s); //存入结果数组
-        p = strtok(NULL, d);
+    char *path = strtok(strs, d);
+    while (path) {
+        string s = path;           //分割得到的字符串转换为string类型
+        res.push_back(s);       //存入结果数组
+        path = strtok(NULL, d); 
     }
     return res;
 }
 
-int BytsPerSec;				//每扇区字节数
-int SecPerClus;				//每簇扇区数
-int RsvdSecCnt;				//Boot记录占用的扇区数
-int NumFATs;				//FAT表个数
-int RootEntCnt;				//根目录最大文件数
-int FATSz;					//FAT扇区数
+bool isL(string &s) {
+    return s[0]=='-' && s[1]=='l'; 
+}
+
+void formatPath(string &s) {
+    if (s[0] != '/') {
+        s = "/" + s;
+    }
+}
 
 extern "C" {
 void asm_print(const char *, const int);
@@ -49,23 +69,20 @@ void myPrint(const char *s) {
     asm_print(s, strlen(s));
 }
 
-//FAT1的偏移字节
-int fatBase;
-int fileRootBase;
-int dataBase;
-int BytsPerClus;
-#pragma pack(1) /*指定按1字节对齐*/
 
-class Node {
-    string name;
-    vector<Node*> next;
-    string path;
-    uint32_t FileSize;
-    bool isFile = false;
-    bool isVal = true;
-    int dir_count = 0;
-    int file_count = 0;
-    char *content = new char[10000];
+
+//---------------------以下是Node节点类---------------------------
+class Node{
+    string name;            //名字
+    vector<Node*> next;     //下一级目录的Node数组
+    Node* father;           //父节点
+    string path;            //记录path，便于打印操作
+    uint32 fileSize;        //文件大小
+    bool isFile = false;    //是文件还是目录
+    bool isVal = true;      //用于标记.和..（true表示文件或者文件夹，false表示.和..）
+    int dir_count = 0;      //记录下一级有多少目录
+    int file_count = 0;     //记录下一级有多少文件
+    char *content = new char[10000];    //存放文件内容
 public:
     Node() = default;
 
@@ -73,15 +90,16 @@ public:
 
     Node(string name, string path);
 
-    Node(string name, uint32_t fileSize, bool isFile, string path);
+    Node(string name, uint32 fileSize, bool isFile, string path);
 
-    void setPath(string p) {
-        this->path = p;
+    void setPath(string path) {
+        this->path = path;
     }
 
     void setName(string n) {
         this->name = n;
     }
+    void addFather(Node *father);
 
     void addChild(Node *child);
 
@@ -95,13 +113,19 @@ public:
 
     char* getContent() { return content; }
 
-    bool getIsFile() { return isFile;}
+    bool getIsFile() { return isFile; }
+
+    Node* getFather() {return father; };
 
     vector<Node*> getNext() { return next; }
 
     bool getIsVal() { return isVal; }
 
-    uint32_t getFileSize() { return FileSize; }
+    uint32 getFileSize() { return fileSize; }
+
+    int getDirCount() { return dir_count; }
+
+    int getFileCount() { return file_count; };
 };
 
 Node::Node(string name, string path) {
@@ -114,16 +138,24 @@ Node::Node(string name, bool isVal) {
     this->isVal = isVal;
 }
 
+Node::Node(string name, uint32 fileSize, bool isFile, string path) {
+    this->name = name;
+    this->fileSize = fileSize;
+    this->isFile = isFile;
+    this->path = path;
+}
+
+void Node::addFather(Node* father){
+    this->father = father;
+}
+
+void Node::addChild(Node *child) {
+    this->next.push_back(child);
+}
+
 void Node::addFileChild(Node *child) {
     this->next.push_back(child);
     this->file_count++;
-}
-
-Node::Node(string name, uint32_t fileSize, bool isFile, string path) {
-    this->name = name;
-    this->FileSize = fileSize;
-    this->isFile = isFile;
-    this->path = path;
 }
 
 void Node::addDirChild(Node *child) {
@@ -133,35 +165,35 @@ void Node::addDirChild(Node *child) {
     this->dir_count++;
 }
 
-void Node::addChild(Node *child) {
-    this->next.push_back(child);
-}
+//---------------------以下是FAT12类---------------------------
+#pragma pack(1) /*指定按1字节对齐*/
 
-class BPB
-{
-    uint16_t BPB_BytsPerSec; //每扇区字节数
-    uint8_t BPB_SecPerClus;  //每簇扇区数
-    uint16_t BPB_RsvdSecCnt; //Boot记录占用的扇区数
-    uint8_t BPB_NumFATs;		//FAT表个数
-    uint16_t BPB_RootEntCnt; //根目录最大文件数
-    uint16_t BPB_TotSec16;
-    uint8_t BPB_Media;
-    uint16_t BPB_FATSz16; //FAT扇区数
-    uint16_t BPB_SecPerTrk;
-    uint16_t BPB_NumHeads;
-    uint32_t BPB_HiddSec;
-    uint32_t BPB_TotSec32; //如果BPB_FATSz16为0，该值为FAT扇区数
+//引导扇区的BPB，25字节
+class BPB{
+    uint16 BPB_BytsPerSec;    //每扇区字节数
+    uint8 BPB_SecPerClus;     //每簇扇区数
+    uint16 BPB_RsvdSecCnt;    //Boot记录占用的扇区数
+    uint8 BPB_NumFATs;		//FAT表个数
+    uint16 BPB_RootEntCnt;    //根目录最大文件数
+    uint16 BPB_TotSec16;      //扇区总数
+    uint8 BPB_Media;          //介质描述符
+    uint16 BPB_FATSz16;       //FAT扇区数
+    uint16 BPB_SecPerTrk;     //每磁道扇区数（Sector/track）
+    uint16 BPB_NumHeads;      //磁头数（面数）
+    uint32 BPB_HiddSec;       //隐藏扇区数
+    uint32 BPB_TotSec32;      //如果BPB_FATSz16为0，该值为FAT扇区数
 public:
     BPB() {};
 
     void init(FILE *fat12);
 };
 
-void BPB::init(FILE *fat12) {
-    fseek(fat12, 11, SEEK_SET);   //BPB从偏移11个字节处开始
-    fread(this, 1, 25, fat12); //BPB长度为25字节
+void BPB::init(FILE *fat12){
+    fseek(fat12, 11, SEEK_SET); //BPB从偏移11个字节处开始
+    fread(this, 1, 25, fat12);
 
-    BytsPerSec = this->BPB_BytsPerSec; //初始化各个全局变量
+    //初始化各个全局变量
+    BytsPerSec = this->BPB_BytsPerSec; 
     SecPerClus = this->BPB_SecPerClus;
     RsvdSecCnt = this->BPB_RsvdSecCnt;
     NumFATs = this->BPB_NumFATs;
@@ -173,23 +205,23 @@ void BPB::init(FILE *fat12) {
     else{
         FATSz = this->BPB_TotSec32;
     }
+
     fatBase = RsvdSecCnt * BytsPerSec;
-    fileRootBase = (RsvdSecCnt + NumFATs * FATSz) * BytsPerSec; //根目录首字节的偏移数=boot+fat1&2的总字节数
+    fileRootBase = (RsvdSecCnt + NumFATs * FATSz) * BytsPerSec;
     dataBase = BytsPerSec * (RsvdSecCnt + FATSz * NumFATs + (RootEntCnt * 32 + BytsPerSec - 1) / BytsPerSec);
-    BytsPerClus = SecPerClus * BytsPerSec; //每簇的字节数
+    BytsPerClus = SecPerClus * BytsPerSec;
 }
 
-//BPB至此结束，长度25字节
 //根目录条目
 class RootEntry
 {
-    char DIR_Name[11];
-    uint8_t DIR_Attr; //文件属性
-    char reserved[10];
-    uint16_t DIR_WrtTime;
-    uint16_t DIR_WrtDate;
-    uint16_t DIR_FstClus; //开始簇号
-    uint32_t DIR_FileSize;
+    char DIR_Name[11];          //文件名8字节，扩展名3字节
+    uint8 DIR_Attr;             //文件属性
+    char reserved[10];          //保留位
+    uint16 DIR_WrtTime;         //文件最后一次写入时间
+    uint16 DIR_WrtDate;         //文件最后一次写入日期
+    uint16 DIR_FstClus;         //此条目对应的开始簇数
+    uint32 DIR_FileSize;        //文件大小
 public:
     RootEntry() {};
 
@@ -207,18 +239,21 @@ public:
 
     void generateDirName(char name[12]);
 
-    uint32_t getFileSize();
+    uint32 getFileSize();
 
-    uint16_t getFstClus() { return DIR_FstClus; }
+    uint16 getFstClus() { return DIR_FstClus; }
 };
 
+/*
+* 获取FAT表的值
+*/
 int getFATValue(FILE *fat12, int num) {
-    int base = RsvdSecCnt * BytsPerSec;
-    int pos = base + num * 3 / 2;
+    int base = RsvdSecCnt * BytsPerSec; //FAT表的偏移量
+    int pos = base + num * 3 / 2;       //该项的偏移量
     int type = num % 2;
 
-    uint16_t bytes;
-    uint16_t *bytesPtr = &bytes;
+    uint16 bytes;
+    uint16 *bytesPtr = &bytes;
     fseek(fat12, pos, SEEK_SET);
     fread(bytesPtr, 1, 2, fat12);
 
@@ -228,9 +263,12 @@ int getFATValue(FILE *fat12, int num) {
     return bytes >> 4;
 }
 
+/*
+* 查FAT表，从数据区获取内容
+*/
 void RetrieveContent(FILE *fat12, int startClus, Node *child) {
-    int base = BytsPerSec * (RsvdSecCnt + FATSz * NumFATs + (RootEntCnt * 32 + BytsPerSec - 1) / BytsPerSec);
-    int currentClus = startClus;
+    int base = BytsPerSec * (RsvdSecCnt + FATSz * NumFATs + (RootEntCnt * 32 + BytsPerSec - 1) / BytsPerSec);   //数据区偏移量
+    int currentClus = startClus;    
     int value = 0;
     char *pointer = child->getContent();
 
@@ -239,14 +277,14 @@ void RetrieveContent(FILE *fat12, int startClus, Node *child) {
     while (value < 0xFF8) {
         value = getFATValue(fat12, currentClus);
         if (value == 0xFF7) {
-            myPrint("坏啦！");
+            myPrint("File Broken!\n");
             break;
         }
 
-        int size = SecPerClus * BytsPerSec;
+        int size = SecPerClus * BytsPerSec;     //每簇字节数
         char *str = (char*)malloc(size);
         char *content = str;
-        int startByte = base + (currentClus - 2)*SecPerClus*BytsPerSec;
+        int startByte = base + (currentClus - 2)*SecPerClus*BytsPerSec;   //该簇的起始字节，这里-2是因为数据区第一个簇号是2
 
         fseek(fat12, startByte, SEEK_SET);
         fread(content, 1, size, fat12);
@@ -260,31 +298,32 @@ void RetrieveContent(FILE *fat12, int startClus, Node *child) {
     }
 }
 
-
+/*
+* 递归查找子节点
+*/
 void readChildren(FILE *fat12, int startClus, Node *root) {
 
-    int base = BytsPerSec * (RsvdSecCnt + FATSz * NumFATs + (RootEntCnt * 32 + BytsPerSec - 1) / BytsPerSec);
-
+    int base = BytsPerSec * (RsvdSecCnt + FATSz * NumFATs + (RootEntCnt * 32 + BytsPerSec - 1) / BytsPerSec);   //数据区偏移量
     int currentClus = startClus;
     int value = 0;
     while (value < 0xFF8) {
         value = getFATValue(fat12, currentClus);
         if (value == 0xFF7) {
-            myPrint("坏啦！");
+            myPrint("File Broken!\n");
             break;
         }
 
-        int startByte = base + (currentClus - 2) * SecPerClus * BytsPerSec;
-
-        int size = SecPerClus * BytsPerSec;
+        int startByte = base + (currentClus - 2) * SecPerClus * BytsPerSec;     //该簇的起始字节，这里-2是因为数据区第一个簇号是2
+        int size = SecPerClus * BytsPerSec;     //每簇字节数
         int loop = 0;
         while (loop < size) {
+            //数据区每项开头的内容和 RootEntry 相同
             RootEntry *rootEntry = new RootEntry();
             fseek(fat12, startByte + loop, SEEK_SET);
             fread(rootEntry, 1, 32, fat12);
 
             loop += 32;
-
+            
             if (rootEntry->isEmptyName() || rootEntry->isInvalidName()) {
                 continue;
             }
@@ -294,6 +333,7 @@ void readChildren(FILE *fat12, int startClus, Node *root) {
                 rootEntry->generateFileName(tmpName);
                 Node *child = new Node(tmpName, rootEntry->getFileSize(), true, root->getPath());
                 root->addFileChild(child);
+                child->addFather(root);
                 RetrieveContent(fat12, rootEntry->getFstClus(), child);
             } else {
                 rootEntry->generateDirName(tmpName);
@@ -301,12 +341,12 @@ void readChildren(FILE *fat12, int startClus, Node *root) {
                 child->setName(tmpName);
                 child->setPath(root->getPath() + tmpName + "/");
                 root->addDirChild(child);
+                child->addFather(root);
                 readChildren(fat12, rootEntry->getFstClus(), child);
             }
         }
     }
 }
-
 
 void RootEntry::initRootEntry(FILE *fat12, Node *root) {
     int base = fileRootBase;
@@ -324,6 +364,7 @@ void RootEntry::initRootEntry(FILE *fat12, Node *root) {
             generateFileName(realName);
             Node *child = new Node(realName, this->DIR_FileSize, true, root->getPath());
             root->addFileChild(child);
+            child->addFather(root);
             RetrieveContent(fat12, this->DIR_FstClus, child);
         } else {
             generateDirName(realName);
@@ -331,16 +372,17 @@ void RootEntry::initRootEntry(FILE *fat12, Node *root) {
             child->setName(realName);
             child->setPath(root->getPath() + realName + "/");
             root->addDirChild(child);
+            child->addFather(root);
             readChildren(fat12, this->getFstClus(), child);
         }
     }
 }
 
-bool RootEntry::isValidNameAt(int j) {
-    return ((this->DIR_Name[j] >= 'a') && (this->DIR_Name[j] <= 'z'))
-           ||((this->DIR_Name[j] >= 'A') && (this->DIR_Name[j] <= 'Z'))
-           ||((this->DIR_Name[j] >= '0') && (this->DIR_Name[j] <= '9'))
-           ||((this->DIR_Name[j] == ' '));
+bool RootEntry::isValidNameAt(int i) {
+    return ((this->DIR_Name[i] >= 'a') && (this->DIR_Name[i] <= 'z'))
+            ||((this->DIR_Name[i] >= 'A') && (this->DIR_Name[i] <= 'Z'))
+            ||((this->DIR_Name[i] >= '0') && (this->DIR_Name[i] <= '9'))
+            ||((this->DIR_Name[i] == ' '));
 }
 
 bool RootEntry::isEmptyName() {
@@ -390,19 +432,48 @@ void RootEntry::generateDirName(char *name) {
     }
 }
 
-uint32_t RootEntry::getFileSize() {
+uint32 RootEntry::getFileSize() {
     return DIR_FileSize;
 }
 
-void formatPath(string &s) {
-    if (s[0] != '/') {
-        s = "/" + s;
+
+
+//---------------------以下是解析并完成指令的函数---------------------------
+
+Node* findByName(Node *root, vector<string> dirs) {
+    if(dirs.empty()) return root;
+    string name = dirs[dirs.size()-1];
+    if(name == ".."){
+        dirs.pop_back();
+        return findByName(root->getFather(), dirs);
+    }else if(name == "."){
+        dirs.pop_back();
+        return findByName(root, dirs);
+    }else{
+        for(int i = 0; i < root->getNext().size(); i++){
+            if(name == root->getNext()[i]->getName()){
+                dirs.pop_back();
+                return findByName(root->getNext()[i], dirs);
+            }
+        }
     }
+    return nullptr;
 }
 
-void outputCat(Node *root, string p, int &exist) {
-    formatPath(p);
-    if (p == root->getPath() + root->getName()) {
+//不是目录则返回空指针
+Node* isDir(string &s, Node *root) {
+    vector<string> tmp = split(s, "/");
+    vector<string> dirs;
+    for(int i = tmp.size(); i > 0; i--){
+        dirs.push_back(tmp[i-1]);
+    }
+    return findByName(root, dirs);
+}
+
+void outputCat(Node *root, string path, int &exist) {
+    formatPath(path);
+    //找到匹配文件
+    if (path == root->getPath() + root->getName()) {
         if (root->getIsFile()) {
             exist = 1;
             if (root->getContent()[0] != 0) {
@@ -414,20 +485,21 @@ void outputCat(Node *root, string p, int &exist) {
             exist = 2;
             return;
         }
-
     }
-    if (p.length() <= root->getPath().length()) {
+    //当前目录下匹配失败
+    if (path.length() <= root->getPath().length()) {
         return;
     }
-    string tmp = p.substr(0, root->getPath().length());
+    //在子目录和文件中匹配
+    string tmp = path.substr(0, root->getPath().length());
     if (tmp == root->getPath()) {
         for (Node *q : root->getNext()) {
-            outputCat(q, p, exist);
+            outputCat(q, path, exist);
         }
     }
 }
 
-void handleCAT(vector<string> commands, Node* root) {
+void handleCat(vector<string> commands, Node* root) {
     if (commands.size() == 2 && commands[1][0] != '-') {
         int exist = 0;
         outputCat(root, commands[1], exist);
@@ -442,171 +514,124 @@ void handleCAT(vector<string> commands, Node* root) {
 }
 
 void outputLS(Node *r) {
-    string str;
-    Node *p = r;
-    if (p->getIsFile()) {
+    //如果当前节点是文件，则不输出
+    if(r->getIsFile()){
         return;
     }
-    else {
-        str = p->getPath() + ":\n";
-        const char *strPtr = str.c_str();
-        myPrint(strPtr);
-        str.clear();
-        //打印每个next
-        Node *q;
-        int len = p->getNext().size();
-        for (int i = 0; i < len; i++) {
-            q = p->getNext()[i];
-            if (!q->getIsFile()) {
-                string out = "\033[31m" + q->getName() + "\033[0m" + "  ";
-                myPrint(stringToChar(out));
-            } else {
-                myPrint(stringToChar(q->getName()));
-                myPrint(" ");
-            }
+
+    //输出当前文件夹及直接子文件夹、直接子文件
+    string str = r->getPath() + ":\n";
+    myPrint(str.c_str());
+
+    Node *next;
+    int size = r->getNext().size();
+    for(int i = 0; i < size; i++){
+        next = r->getNext()[i];
+        if(!next->getIsFile()){
+            string out = "\033[31m" + next->getName() + "\033[0m" + "  ";
+            myPrint(out.c_str());
+        }else{
+            myPrint(next->getName().c_str());
+            myPrint(" ");
         }
-        myPrint(stringToChar("\n"));
-        for (int i = 0; i < len; ++i) {
-            if (p->getNext()[i]->getIsVal()) {
-                outputLS(p->getNext()[i]);
-            }
+    }
+    myPrint("\n");
+
+    //递归输出子文件中的内容
+    for(int i = 0; i < size; i++){
+        if(r->getNext()[i]->getIsVal()){
+            outputLS(r->getNext()[i]);
         }
     }
 }
 
 void outputLSL(Node *r) {
-    string str;
-    Node *p = r;
-    if (p->getIsFile()) {
+    //如果当前节点是文件，则不输出
+    if(r->getIsFile()){
         return;
     }
-    else {
-        /*
-         * 算一下
-         */
-        int fileNum = 0;
-        int dirNum = 0;
-        for (int j = 0; j < p->getNext().size(); ++j) {
-            if (p->getNext()[j]->getName() == "." || p->getNext()[j]->getName() == "..") {
-                continue;
-            }
-            if (p->getNext()[j]->getIsFile()) {
-                fileNum++;
-            } else {
-                dirNum++;
-            }
-        }
-        
-        string out = p->getPath() + " " + to_string(dirNum) + " " + to_string(fileNum) + "\n";
-        myPrint(stringToChar(out));
-        str.clear();
-        //打印每个next
-        Node *q;
-        int len = p->getNext().size();
-        for (int i = 0; i < len; i++) {
-            q = p->getNext()[i];
-            if (!q->getIsFile()) {
-                if (q->getName() == "." || q->getName() == "..") {
-                    string out = "\033[31m" + q->getName() + "\033[0m" + " " + "\n";
-                    myPrint(stringToChar(out));
-                } else {
-                    fileNum = 0;
-                    dirNum = 0;
-                    for (int j = 2; j < q->getNext().size(); ++j) {
-                        if (q->getNext()[j]->getIsFile()) {
-                            fileNum++;
-                        } else {
-                            dirNum++;
-                        }
-                    }
-                    string out = "\033[31m" + q->getName() + "\033[0m" + " " + to_string(dirNum) + " " + to_string(fileNum) + "\n";
-                    myPrint(stringToChar(out));
-                }
-            } else {
-                string out = q->getName() + " " + to_string(q->getFileSize()) + "\n";
-                myPrint(stringToChar(out));
-            }
-        }
-        myPrint(stringToChar("\n"));
-        for (int i = 0; i < len; ++i) {
-            if (p->getNext()[i]->getIsVal()) {
-                outputLSL(p->getNext()[i]);
-            }
-        }
-    }
-}
 
-bool isL(string &s) {
-    if (s[0] != '-') {
-        return false;
-    } else {
-        for (int i=1; i<s.size(); i++) {
-            if (s[i] != 'l') return false;
-        }
-    }
-    return true;
-}
-Node* findByName(Node *root, vector<string> dirs) {
-    if (dirs.empty()) return root;
-    string name = dirs[dirs.size()-1];
-    for (int i=0; i<root->getNext().size(); i++) {
-        if (name == root->getNext()[i]->getName()) {
-            dirs.pop_back();
-            return findByName(root->getNext()[i], dirs);
-        }
-    }
-    return nullptr;
-}
+    //输出当前文件夹及直接子文件夹、直接子文件
+    int dirNum = r->getDirCount();
+    int fileNum = r->getFileCount();
+    string str = r->getPath() + " " + to_string(dirNum) + " " + to_string(fileNum) + "\n";
+    myPrint(str.c_str());
 
-Node* isDir(string &s, Node *root) {
-    vector<string> tmp = split(s, "/");
-    vector<string> dirs;
-    while (!tmp.empty()) {
-        dirs.push_back(tmp[tmp.size()-1]);
-        tmp.pop_back();
+    Node *next;
+    int size = r->getNext().size();
+    for(int i = 0; i < size; i++){
+        next = r->getNext()[i];
+        if(!next->getIsFile()){  //如果是文件夹
+            if(next->getName() == "." || next->getName() == ".."){
+                str = "\033[31m" + next->getName() + "\033[0m \n";
+                myPrint(str.c_str());
+            }else{
+                dirNum = next->getDirCount();
+                fileNum = next->getFileCount();
+                str = "\033[31m" + next->getName() + "\033[0m " + to_string(dirNum) + " " +to_string(fileNum) + "\n";
+                myPrint(str.c_str());
+            }
+        }else{              //如果是文件
+            str = next->getName() + " " + to_string(next->getFileSize()) + "\n";
+            myPrint(str.c_str());
+        }
     }
-    return findByName(root, dirs);
-}
+    myPrint("\n");
+
+    //递归输出子文件中的内容
+    for(int i = 0; i < size; i++){
+        if(r->getNext()[i]->getIsVal()){
+            outputLSL(r->getNext()[i]);
+        }
+    }
+}   
 
 void handleLS(vector<string> commands, Node* root) {
-    if (commands.size() == 1) {
+    if(commands.size() == 1){
         outputLS(root);
-    } else {
-        // handle -l
-        bool hasL = false;
-        bool hasDir = false;
-        Node *toFind = root;
-        for (int i=1; i<commands.size(); i++) {
-            Node* newRoot = isDir(commands[i], root);
-            if (isL(commands[i])) {
-                hasL = true;
-            } else if (!hasDir && newRoot != nullptr) {
-                hasDir = true;
-                toFind = newRoot;
-            } else {
-                myPrint(PARAM_WRONG);
-                return;
-            }
+        return;
+    }
+    bool hasL = false;
+    bool hasDir = false;
+    Node *toFind = root;
+
+    //处理-l以及目录的问题
+    for(int i=1; i<commands.size(); i++){
+        Node *newRoot = isDir(commands[i], root);
+        if(isL(commands[i])){
+            hasL = true;
+        }else if(!hasDir && newRoot != nullptr){
+            hasDir = true;
+            toFind = newRoot;
+        }else{
+            myPrint(PARAM_WRONG);
+            return;
         }
-        if (hasL) {
-            outputLSL(toFind);
-        }
+    }
+    
+    //根据是否有-l调用不同的输出
+    if(hasL){
+        outputLSL(toFind);
+    }else{
+        outputLS(toFind);
     }
 }
 
 int main()
 {
+    //打开FAT12的映像文件
     FILE *fat12;
-    fat12 = fopen("./a.img", "rb"); //打开FAT12的映像文件
-
+    fat12 = fopen("./a.img", "rb"); 
+    //初始化BPB, RootEntry, Node节点
     BPB *bpb = new BPB();
     bpb->init(fat12);
     Node *root = new Node();
+    root->addFather(root);
     root->setName("");
     root->setPath("/");
     RootEntry *rootEntry = new RootEntry();
     rootEntry->initRootEntry(fat12, root);
-
+    //解析并执行命令
     while (true) {
         myPrint(">");
         string input;
@@ -617,7 +642,7 @@ int main()
             fclose(fat12);
             break;
         } else if (commands[0] == "cat") {
-            handleCAT(commands, root);
+            handleCat(commands, root);
         } else if (commands[0] == "ls") {
             handleLS(commands, root);
         } else {
@@ -627,4 +652,3 @@ int main()
     }
 
 }
-
