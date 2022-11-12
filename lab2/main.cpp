@@ -22,8 +22,8 @@ int RootEntCnt;			//根目录最大文件数
 int FATSz;				//FAT扇区数
 
 //FAT12的偏移字节
-int fatBase;            //FAT表偏移
 int fileRootBase;       //根目录区偏移
+int fatBase;            //FAT表偏移
 int dataBase;           //数据区偏移
 int BytsPerClus;        //每簇字节数
 
@@ -470,33 +470,30 @@ Node* isDir(string &s, Node *root) {
     return findByName(root, dirs);
 }
 
-void outputCat(Node *root, string path, int &exist) {
-    formatPath(path);
-    //找到匹配文件
-    if (path == root->getPath() + root->getName()) {
-        if (root->getIsFile()) {
-            exist = 1;
-            if (root->getContent()[0] != 0) {
-                myPrint(root->getContent());
-                myPrint("\n");
-            }
-            return;
-        } else {
-            exist = 2;
+void outputCat(Node *root, string path, int &exist){
+    vector<string> tmp = split(path, "/");
+    vector<string> dirs;
+    for(int i = tmp.size(); i > 0; i--){
+        dirs.push_back(tmp[i-1]);
+    }
+    
+    Node *toFind = findByName(root, dirs);
+    
+    if(toFind == nullptr){  //找不到文件
+        exist = 0;
+        return;
+    }else if(toFind->getIsFile()){ //找到文件
+        exist = 1;
+        if(toFind->getContent()[0] != '0'){
+            myPrint(toFind->getContent());
+            myPrint("\n");
             return;
         }
-    }
-    //当前目录下匹配失败
-    if (path.length() <= root->getPath().length()) {
+    }else{  //找到的是文件夹
+        exist = 2;
         return;
     }
-    //在子目录和文件中匹配
-    string tmp = path.substr(0, root->getPath().length());
-    if (tmp == root->getPath()) {
-        for (Node *q : root->getNext()) {
-            outputCat(q, path, exist);
-        }
-    }
+
 }
 
 void handleCat(vector<string> commands, Node* root) {
@@ -513,9 +510,10 @@ void handleCat(vector<string> commands, Node* root) {
     }
 }
 
-void outputLS(Node *r) {
-    //如果当前节点是文件，则不输出
+void outputLS(Node *r, bool isRoot) {
+    //如果当前节点是文件，则报错
     if(r->getIsFile()){
+        if(isRoot) myPrint(PARAM_WRONG);
         return;
     }
 
@@ -540,14 +538,15 @@ void outputLS(Node *r) {
     //递归输出子文件中的内容
     for(int i = 0; i < size; i++){
         if(r->getNext()[i]->getIsVal()){
-            outputLS(r->getNext()[i]);
+            outputLS(r->getNext()[i], false);
         }
     }
 }
 
-void outputLSL(Node *r) {
-    //如果当前节点是文件，则不输出
+void outputLSL(Node *r, bool isRoot) {
+    //如果当前节点是文件，则不处理
     if(r->getIsFile()){
+        if(isRoot) myPrint(PARAM_WRONG);
         return;
     }
 
@@ -581,14 +580,14 @@ void outputLSL(Node *r) {
     //递归输出子文件中的内容
     for(int i = 0; i < size; i++){
         if(r->getNext()[i]->getIsVal()){
-            outputLSL(r->getNext()[i]);
+            outputLSL(r->getNext()[i], false);
         }
     }
 }   
 
 void handleLS(vector<string> commands, Node* root) {
     if(commands.size() == 1){
-        outputLS(root);
+        outputLS(root, true);
         return;
     }
     bool hasL = false;
@@ -611,9 +610,9 @@ void handleLS(vector<string> commands, Node* root) {
     
     //根据是否有-l调用不同的输出
     if(hasL){
-        outputLSL(toFind);
+        outputLSL(toFind, true);
     }else{
-        outputLS(toFind);
+        outputLS(toFind, true);
     }
 }
 
