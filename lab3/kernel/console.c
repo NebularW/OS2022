@@ -43,17 +43,8 @@ PUBLIC void init_screen(TTY *p_tty)
 	/* 默认光标位置在最开始处 */
 	p_tty->p_console->cursor = p_tty->p_console->original_addr;
 
-	if (nr_tty == 0)
-	{
-		/* 第一个控制台沿用原来的光标位置 */
-		p_tty->p_console->cursor = disp_pos / 2;
-		disp_pos = 0;
-	}
-	else
-	{
-		out_char(p_tty->p_console, nr_tty + '0');
-		out_char(p_tty->p_console, '#');
-	}
+	out_char(p_tty->p_console, nr_tty + '0');
+	out_char(p_tty->p_console, '#');
 
 	set_cursor(p_tty->p_console->cursor);
 }
@@ -140,6 +131,8 @@ PUBLIC void search(CONSOLE *p_con)
 			}
 		}
 	}
+	
+	flush(p_con);
 }
 
 /*======================================================================*
@@ -181,7 +174,8 @@ PUBLIC void out_char(CONSOLE *p_con, char ch)
 		if (p_con->cursor <
 			p_con->original_addr + p_con->v_mem_limit - 1)
 		{
-			for(int i = 0; i < 4; i++){
+			for (int i = 0; i < 4; i++)
+			{
 				*p_vmem++ = 0;
 				*p_vmem++ = DEFAULT_CHAR_COLOR;
 			}

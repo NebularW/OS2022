@@ -57,12 +57,28 @@ PRIVATE void init_tty(TTY *p_tty)
 	p_tty->p_inbuf_head = p_tty->p_inbuf_tail = p_tty->in_buf;
 
 	init_screen(p_tty);
+
+	p_tty->p_console->cursor = p_tty->p_console->original_addr;
+}
+
+/*======================================================================*
+				清屏后初始化tty
+ *======================================================================*/
+
+PUBLIC void init_all_screen()
+{
+	TTY *p_tty;
+	for (p_tty = TTY_FIRST; p_tty < TTY_END; p_tty++)
+	{
+		p_tty->p_console->cursor = p_tty->p_console->original_addr;
+		p_tty->p_console->current_start_addr = p_tty->p_console->original_addr;
+	}
+	// select_console(0);
 }
 
 /*======================================================================*
 				in_process
  *======================================================================*/
-// TODO 查找模式
 PUBLIC void in_process(TTY *p_tty, u32 key)
 {
 	char output[2] = {'\0', '\0'};
