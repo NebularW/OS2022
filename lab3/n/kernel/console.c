@@ -70,7 +70,7 @@ PUBLIC int is_current_console(CONSOLE* p_con)
 /*======================================================================*
 			   out_char
  *======================================================================*/
-// TODO 输出到控制台，tab,s
+// TODO 输出到控制台，tab
 PUBLIC void out_char(CONSOLE* p_con, char ch)
 {
 	u8* p_vmem = (u8*)(V_MEM_BASE + p_con->cursor * 2);
@@ -91,6 +91,13 @@ PUBLIC void out_char(CONSOLE* p_con, char ch)
 			*(p_vmem-1) = DEFAULT_CHAR_COLOR;
 		}
 		break;
+	case '\t':
+		if (p_con->cursor <
+		    p_con->original_addr + p_con->v_mem_limit - 1) {
+			*p_vmem++ = '\t';
+			*p_vmem++ = DEFAULT_CHAR_COLOR;
+			p_con->cursor+=1;
+		}
 	default:
 		if (p_con->cursor <
 		    p_con->original_addr + p_con->v_mem_limit - 1) {
