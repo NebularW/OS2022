@@ -14,11 +14,11 @@ ENTRYOFFSET	=   0x400
 ASM		= nasm
 DASM	= ndisasm
 CC		= gcc
-LD		= ld -m elf_i386
-ASMBFLAGS	= -I boot/include/ 
+LD		= ld 
+ASMBFLAGS	= -I boot/include/
 ASMKFLAGS	= -I include/ -f elf32
 CFLAGS		= -I include/ -c -fno-builtin -fno-stack-protector -m32
-LDFLAG		= -s -Ttext $(ENTRYPOINT) 
+LDFLAGS		= -s -Ttext $(ENTRYPOINT) -m elf_i386
 DASMFLAGS	= -u -o $(ENTRYPOINT) -e $(ENTRYOFFSET)
 
 # This Program
@@ -44,7 +44,7 @@ all : realclean everything
 image : realclean everything clean buildimg
 
 run:
-	make image
+	make image	
 	bochs -f bochsrc
 clean :
 	rm -f $(OBJS)
@@ -56,12 +56,12 @@ disasm :
 	$(DASM) $(DASMFLAGS) $(ORANGESKERNEL) > $(DASMOUTPUT)
 
 # We assume that "a.img" exists in current folder
-# buildimg :
-# 	dd if=boot/boot.bin of=a.img bs=512 count=1 conv=notrunc
-# 	sudo mount -o loop a.img /mnt/hgfs/OSshare/n
-# 	sudo cp -fv boot/loader.bin /mnt/hgfs/OSshare/n
-# 	sudo cp -fv kernel.bin /mnt/hgfs/OSshare/n
-# 	sudo umount /mnt/hgfs/OSshare/n
+buildimg :
+	dd if=boot/boot.bin of=a.img bs=512 count=1 conv=notrunc
+	sudo mount -o loop a.img /mnt/wxy
+	sudo cp -fv boot/loader.bin /mnt/wxy
+	sudo cp -fv kernel.bin /mnt/wxy
+	sudo umount /mnt/wxy
 
 boot/boot.bin : boot/boot.asm boot/include/load.inc boot/include/fat12hdr.inc
 	$(ASM) $(ASMBFLAGS) -o $@ $<
@@ -110,11 +110,11 @@ kernel/protect.o: kernel/protect.c include/type.h include/const.h include/protec
 	$(CC) $(CFLAGS) -o $@ $<
 
 kernel/proc.o: kernel/proc.c
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS)	-o $@ $<
 
 lib/klib.o: lib/klib.c include/type.h include/const.h include/protect.h include/string.h include/proc.h include/proto.h \
 			include/global.h
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS)	-o $@ $<
 
 lib/kliba.o : lib/kliba.asm
 	$(ASM) $(ASMKFLAGS) -o $@ $<
