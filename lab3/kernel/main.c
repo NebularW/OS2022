@@ -101,8 +101,8 @@ void TestA()
 		if (mode == 0) {
 			cleanScreen();
 			init_all_screen();
-			// milli_delay(220000);
-			milli_delay(50000);
+			milli_delay(220000);
+			// milli_delay(20000);
 		}
 	}
 }
@@ -140,4 +140,5 @@ void cleanScreen() {
 		disp_str(" ");
 	}
 	disp_pos = 0; //将指针又移回第一个位置
+	init_all_screen();
 }

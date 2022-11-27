@@ -65,15 +65,25 @@ PRIVATE void init_tty(TTY *p_tty)
 				清屏后初始化tty
  *======================================================================*/
 
+// PUBLIC void init_all_screen()
+// {
+// 	TTY *p_tty;
+// 	for (p_tty = TTY_FIRST; p_tty < TTY_END; p_tty++)
+// 	{
+// 		p_tty->p_console->cursor = p_tty->p_console->original_addr;
+// 		p_tty->p_console->current_start_addr = p_tty->p_console->original_addr;
+// 	}
+// 	// select_console(0);
+// }
+
 PUBLIC void init_all_screen()
 {
 	TTY *p_tty;
 	for (p_tty = TTY_FIRST; p_tty < TTY_END; p_tty++)
 	{
-		p_tty->p_console->cursor = p_tty->p_console->original_addr;
-		p_tty->p_console->current_start_addr = p_tty->p_console->original_addr;
+		init_screen(p_tty);
 	}
-	// select_console(0);
+	select_console(0);
 }
 
 /*======================================================================*
