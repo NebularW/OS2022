@@ -125,7 +125,13 @@ PUBLIC void search(CONSOLE *p_con)
 			//如果找到，就标红
 			for (int m = begin; m < end; m += 2)
 			{
-				*(u8 *)(V_MEM_BASE + m + 1) = RED_CHAR_COLOR; //只需要设置颜色，所以更改每个字母的第二个字节即可
+				if(*(u8 *)(V_MEM_BASE + m) == 0 || *(u8 *)(V_MEM_BASE + m) == ' '){
+					*(u8 *)(V_MEM_BASE + m + 1) = RED_BACKGROUND;
+				}else{
+					*(u8 *)(V_MEM_BASE + m + 1) = RED_CHAR_COLOR; //只需要设置颜色，所以更改每个字母的第二个字节即可
+				}
+				
+
 			}
 		}
 	}

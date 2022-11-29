@@ -26,8 +26,7 @@ typedef struct s_console
 
 #define DEFAULT_CHAR_COLOR 0x07 /* 0000 0111 黑底白字 */
 #define RED_CHAR_COLOR 0x04		/* 0000 0100 黑底红字 */
-#define GREEN_CHAR_COLOR 0x02	/* 0000 0010 黑底绿字 */
-#define BLUE_CHAR_COLOR 0x01	/* 0000 0001 黑底蓝字 */
+#define RED_BACKGROUND 0x47	/* 0000 0010 红底白字 */
 #define TAB_WIDTH 4				/*TAB的长度是4*/
 
 #endif /* _ORANGES_CONSOLE_H_ */
