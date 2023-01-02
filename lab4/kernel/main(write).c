@@ -123,6 +123,7 @@ void A()
 		state[i] = 'X';
 	while (1)
 	{
+		milli_delay(3000);
 		if (lines > 20)
 			continue;
 		s_disp_str(to_char(lines));
@@ -146,7 +147,7 @@ void A()
 		}
 		s_disp_str("\n");
 		lines++;
-		milli_delay(3000);
+		
 	}
 }
 

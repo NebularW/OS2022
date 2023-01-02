@@ -15,6 +15,7 @@
 
 Semaphore rmutex;
 Semaphore wmutex;
+Semaphore z;
 int allReader;
 
 char state[5]; // 记录各进程状态: O:正在 X：等待 Z：休息
@@ -80,14 +81,16 @@ PUBLIC int kernel_main()
 	put_irq_handler(CLOCK_IRQ, clock_handler); /* 设定时钟中断处理程序 */
 	enable_irq(CLOCK_IRQ);					   /* 让8259A可以接收时钟中断 */
 
-	readerCount = 0;
 	allReader = 0;
-	rmutex.count = 1; // 同时读的数量n
+	rmutex.count = 3; // 同时读的数量n
 	rmutex.head = 0;
 	rmutex.tail = 0;
 	wmutex.count = 1;
 	wmutex.head = 0;
 	wmutex.tail = 0;
+	z.count = 1;
+	z.head = 0;
+	z.tail = 0;
 	clearScreen();
 
 	restart();
@@ -119,6 +122,7 @@ void A()
 		state[i] = 'X';
 	while (1)
 	{
+		milli_delay(3000);
 		if (lines > 20)
 			continue;
 		s_disp_str(to_char(lines));
@@ -142,7 +146,7 @@ void A()
 		}
 		s_disp_str("\n");
 		lines++;
-		milli_delay(3000);
+		
 	}
 }
 
@@ -150,18 +154,16 @@ void B()
 {
 	while (1)
 	{
-		allReader++;
 		p(&rmutex);
+		allReader++;
 		if (allReader == 1)
 			p(&wmutex);
-		readerCount++;
 		state[0] = 'O';
 		milli_delay(2 * 3000); // B消耗2个时间片
-		readerCount--;
 		allReader--;
+		v(&rmutex);
 		if (allReader == 0)
 			v(&wmutex);
-		v(&rmutex);
 		state[0] = 'Z';
 		milli_delay(t * 3000);
 		state[0] = 'X';
@@ -172,18 +174,18 @@ void C()
 {
 	while (1)
 	{
-		allReader++;
 		p(&rmutex);
-		if (allReader == 1)
+		allReader++;
+		if (allReader == 1){
 			p(&wmutex);
-		readerCount++;
+		}
 		state[1] = 'O';
 		milli_delay(3 * 3000); // C消耗3个时间片
-		readerCount--;
 		allReader--;
-		if (allReader == 0)
-			v(&wmutex);
 		v(&rmutex);
+		if (allReader == 0){
+			v(&wmutex);
+		}
 		state[1] = 'Z';
 		milli_delay(t * 3000);
 		state[1] = 'X';
@@ -193,19 +195,18 @@ void C()
 void D()
 {
 	while (1)
-	{
-		allReader++;
+	{	
 		p(&rmutex);
+		allReader++;
 		if (allReader == 1)
 			p(&wmutex);
-		readerCount++;
+		
 		state[2] = 'O';
 		milli_delay(3 * 3000); // D消耗3个时间片
-		readerCount--;
 		allReader--;
+		v(&rmutex);
 		if (allReader == 0)
 			v(&wmutex);
-		v(&rmutex);
 		state[2] = 'Z';
 		milli_delay(t*3000);
 		state[2] = 'X';
@@ -217,6 +218,7 @@ void E()
 	while (1)
 	{
 		p(&wmutex);
+		
 		state[3] = 'O';
 		milli_delay(3 * 3000); // E消耗3个时间片
 		v(&wmutex);
@@ -231,6 +233,7 @@ void F()
 	while (1)
 	{
 		p(&wmutex);
+		
 		state[4] = 'O';
 		milli_delay(4 * 3000); // E消耗4个时间片
 		v(&wmutex);

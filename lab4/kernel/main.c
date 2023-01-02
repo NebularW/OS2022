@@ -16,7 +16,7 @@
 Semaphore rmutex;
 Semaphore wmutex;
 Semaphore z;
-int allWriter;
+int allReader;
 
 char state[5]; // 记录各进程状态: O:正在 X：等待 Z：休息
 int t = 1;	   // 进程休息时间片长
@@ -81,8 +81,7 @@ PUBLIC int kernel_main()
 	put_irq_handler(CLOCK_IRQ, clock_handler); /* 设定时钟中断处理程序 */
 	enable_irq(CLOCK_IRQ);					   /* 让8259A可以接收时钟中断 */
 
-	readerCount = 0;
-	allWriter = 0;
+	allReader = 0;
 	rmutex.count = 3; // 同时读的数量n
 	rmutex.head = 0;
 	rmutex.tail = 0;
@@ -95,10 +94,6 @@ PUBLIC int kernel_main()
 	clearScreen();
 
 	restart();
-
-	while (1)
-	{
-	}
 }
 
 void clearScreen()
@@ -123,6 +118,7 @@ void A()
 		state[i] = 'X';
 	while (1)
 	{
+		milli_delay(3000);
 		if (lines > 20)
 			continue;
 		s_disp_str(to_char(lines));
@@ -146,7 +142,6 @@ void A()
 		}
 		s_disp_str("\n");
 		lines++;
-		milli_delay(3000);
 	}
 }
 
@@ -154,19 +149,24 @@ void B()
 {
 	while (1)
 	{
-		p(&rmutex);
 		p(&z);
-		v(&z);
-		if (readerCount == 0)
+		allReader++;
+		if (allReader == 1)
 			p(&wmutex);
-		readerCount++;
+		v(&z);
+
+		p(&rmutex);
 		state[0] = 'O';
 		milli_delay(2 * 3000); // B消耗2个时间片
-		readerCount--;
-		if (readerCount == 0)
-			v(&wmutex);
-		v(&rmutex);
 		state[0] = 'Z';
+		v(&rmutex);
+
+		p(&z);
+		allReader--;
+		if (allReader == 0)
+			v(&wmutex);
+		v(&z);
+
 		milli_delay(t * 3000);
 		state[0] = 'X';
 	}
@@ -176,19 +176,24 @@ void C()
 {
 	while (1)
 	{
-		p(&rmutex);
 		p(&z);
-		v(&z);
-		if (readerCount == 0)
+		allReader++;
+		if (allReader == 1)
 			p(&wmutex);
-		readerCount++;
+		v(&z);
+
+		p(&rmutex);
 		state[1] = 'O';
-		milli_delay(3 * 3000); // C消耗3个时间片
-		readerCount--;
-		if (readerCount == 0)
-			v(&wmutex);
-		v(&rmutex);
+		milli_delay(3 * 3000); // C消耗2个时间片
 		state[1] = 'Z';
+		v(&rmutex);
+
+		p(&z);
+		allReader--;
+		if (allReader == 0)
+			v(&wmutex);
+		v(&z);
+
 		milli_delay(t * 3000);
 		state[1] = 'X';
 	}
@@ -198,19 +203,24 @@ void D()
 {
 	while (1)
 	{
-		p(&rmutex);
 		p(&z);
-		v(&z);
-		if (readerCount == 0)
+		allReader++;
+		if (allReader == 1)
 			p(&wmutex);
-		readerCount++;
+		v(&z);
+
+		p(&rmutex);
 		state[2] = 'O';
 		milli_delay(3 * 3000); // D消耗3个时间片
-		readerCount--;
-		if (readerCount == 0)
-			v(&wmutex);
-		v(&rmutex);
 		state[2] = 'Z';
+		v(&rmutex);
+
+		p(&z);
+		allReader--;
+		if (allReader == 0)
+			v(&wmutex);
+		v(&z);
+
 		milli_delay(t * 3000);
 		state[2] = 'X';
 	}
@@ -220,22 +230,13 @@ void E()
 {
 	while (1)
 	{
-		allWriter++;
-		if (allWriter == 1)
-		{
-			p(&z);
-		}
 		p(&wmutex);
 		state[3] = 'O';
 		milli_delay(3 * 3000); // E消耗3个时间片
-		v(&wmutex);
-		allWriter--;
-		if (allWriter == 0)
-		{
-			v(&z);
-		}
 		state[3] = 'Z';
-		milli_delay(t*3000);
+		v(&wmutex);
+
+		milli_delay(t * 3000);
 		state[3] = 'X';
 	}
 }
@@ -244,22 +245,13 @@ void F()
 {
 	while (1)
 	{
-		allWriter++;
-		if (allWriter == 1)
-		{
-			p(&z);
-		}
 		p(&wmutex);
 		state[4] = 'O';
-		milli_delay(4 * 3000); // F消耗4个时间片
-		v(&wmutex);
-		allWriter--;
-		if (allWriter == 0)
-		{
-			v(&z);
-		}
+		milli_delay(4 * 3000); // E消耗4个时间片
 		state[4] = 'Z';
-		milli_delay(t*3000);
+		v(&wmutex);
+
+		milli_delay(t * 3000);
 		state[4] = 'X';
 	}
 }
