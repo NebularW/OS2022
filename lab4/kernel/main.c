@@ -94,6 +94,10 @@ PUBLIC int kernel_main()
 	clearScreen();
 
 	restart();
+
+	while (1)
+	{
+	}
 }
 
 void clearScreen()
@@ -184,7 +188,7 @@ void C()
 
 		p(&rmutex);
 		state[1] = 'O';
-		milli_delay(3 * 3000); // C消耗2个时间片
+		milli_delay(3 * 3000); // C消耗3个时间片
 		state[1] = 'Z';
 		v(&rmutex);
 
@@ -231,11 +235,11 @@ void E()
 	while (1)
 	{
 		p(&wmutex);
+
 		state[3] = 'O';
 		milli_delay(3 * 3000); // E消耗3个时间片
-		state[3] = 'Z';
 		v(&wmutex);
-
+		state[3] = 'Z';
 		milli_delay(t * 3000);
 		state[3] = 'X';
 	}
@@ -246,11 +250,11 @@ void F()
 	while (1)
 	{
 		p(&wmutex);
+
 		state[4] = 'O';
 		milli_delay(4 * 3000); // E消耗4个时间片
-		state[4] = 'Z';
 		v(&wmutex);
-
+		state[4] = 'Z';
 		milli_delay(t * 3000);
 		state[4] = 'X';
 	}
