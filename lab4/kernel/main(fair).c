@@ -156,7 +156,7 @@ void B()
 		readerCount++;
 		v(&s);
 		state[0] = 'O';
-		milli_delay(3 * 3000); // B消耗2个时间片
+		milli_delay(2 * 3000); // B消耗2个时间片
 		readerCount--;
 		if (readerCount == 0)
 			v(&wmutex);

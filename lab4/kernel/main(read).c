@@ -15,7 +15,7 @@
 
 Semaphore rmutex;
 Semaphore wmutex;
-Semaphore z;
+Semaphore z; // readCount互斥量
 int allReader;
 
 char state[5]; // 记录各进程状态: O:正在 X：等待 Z：休息
@@ -153,23 +153,23 @@ void B()
 {
 	while (1)
 	{
+		p(&rmutex);
 		p(&z);
 		allReader++;
 		if (allReader == 1)
 			p(&wmutex);
 		v(&z);
 
-		p(&rmutex);
 		state[0] = 'O';
 		milli_delay(2 * 3000); // B消耗2个时间片
 		state[0] = 'Z';
-		v(&rmutex);
 
 		p(&z);
 		allReader--;
 		if (allReader == 0)
 			v(&wmutex);
 		v(&z);
+		v(&rmutex);
 
 		milli_delay(t * 3000);
 		state[0] = 'X';
@@ -180,23 +180,23 @@ void C()
 {
 	while (1)
 	{
+		p(&rmutex);
 		p(&z);
 		allReader++;
 		if (allReader == 1)
 			p(&wmutex);
 		v(&z);
 
-		p(&rmutex);
 		state[1] = 'O';
 		milli_delay(3 * 3000); // C消耗3个时间片
 		state[1] = 'Z';
-		v(&rmutex);
 
 		p(&z);
 		allReader--;
 		if (allReader == 0)
 			v(&wmutex);
 		v(&z);
+		v(&rmutex);
 
 		milli_delay(t * 3000);
 		state[1] = 'X';
@@ -207,23 +207,23 @@ void D()
 {
 	while (1)
 	{
+		p(&rmutex);
 		p(&z);
 		allReader++;
 		if (allReader == 1)
 			p(&wmutex);
 		v(&z);
 
-		p(&rmutex);
 		state[2] = 'O';
 		milli_delay(3 * 3000); // D消耗3个时间片
 		state[2] = 'Z';
-		v(&rmutex);
 
 		p(&z);
 		allReader--;
 		if (allReader == 0)
 			v(&wmutex);
 		v(&z);
+		v(&rmutex);
 
 		milli_delay(t * 3000);
 		state[2] = 'X';
@@ -235,7 +235,6 @@ void E()
 	while (1)
 	{
 		p(&wmutex);
-
 		state[3] = 'O';
 		milli_delay(3 * 3000); // E消耗3个时间片
 		v(&wmutex);
@@ -250,7 +249,6 @@ void F()
 	while (1)
 	{
 		p(&wmutex);
-
 		state[4] = 'O';
 		milli_delay(4 * 3000); // E消耗4个时间片
 		v(&wmutex);
